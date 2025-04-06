@@ -1,0 +1,36 @@
+{
+  "name": "did-nostr-resolver",
+  "version": "0.1.0",
+  "description": "A resolver for Nostr Decentralized Identifiers (DIDs)",
+  "main": "index.js",
+  "bin": {
+    "did-nostr-resolver": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./bin/cli.js"
+  },
+  "keywords": [
+    "did",
+    "nostr",
+    "decentralized",
+    "identity",
+    "resolver",
+    "did-nostr"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nostr-labs/did-nostr-resolver.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nostr-labs/did-nostr-resolver/issues"
+  },
+  "homepage": "https://github.com/nostr-labs/did-nostr-resolver#readme",
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=12.0.0"
+  }
+}
