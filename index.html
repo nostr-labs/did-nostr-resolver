@@ -1096,7 +1096,7 @@
       // Create DID Tab Component
       const CreateDIDTab = () => {
         const [pubkey, setPubkey] = useState(
-          '124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2'
+          '32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
         )
         const [relays, setRelays] = useState([
           'wss://relay.damus.io',
@@ -1155,7 +1155,7 @@
               <input
                 type="text"
                 id="pubkey"
-                placeholder="e.g., 124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2"
+                placeholder="e.g., 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"
                 value=${pubkey}
                 onInput=${e => setPubkey(e.target.value)}
               />
@@ -1198,7 +1198,7 @@
       // Resolve DID Tab Component
       const ResolveDIDTab = () => {
         const [did, setDid] = useState(
-          'did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2'
+          'did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
         )
         const [relays, setRelays] = useState([
           'wss://relay.damus.io',
@@ -1254,7 +1254,7 @@
               <input
                 type="text"
                 id="did"
-                placeholder="e.g., did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2"
+                placeholder="e.g., did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"
                 value=${did}
                 onInput=${e => setDid(e.target.value)}
               />
@@ -1359,11 +1359,11 @@
             <h3>Example</h3>
             <pre><code>{
   "@context": ["https://w3id.org/did", "https://w3id.org/nostr/context"],
-  "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2",
+  "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
   "verificationMethod": [
     {
-      "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#key1",
-      "controller": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2",
+      "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#key1",
+      "controller": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
       "type": "SchnorrVerification2023"
     }
   ],
@@ -1371,7 +1371,7 @@
   "assertionMethod": ["#key1"],
   "service": [
     {
-      "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#relay1",
+      "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#relay1",
       "type": "Relay",
       "serviceEndpoint": "wss://relay.example.org"
     }
