@@ -740,121 +740,72 @@
             limit: 1
           }
 
-          // Use simple fetch approach that doesn't rely on specific NostrTools methods
+          // Remove HTTP fetch approach - only use WebSockets
           try {
-            const fetchPromises = this.defaultRelays.map(async relayUrl => {
-              try {
-                console.log(`Trying to fetch from ${relayUrl}...`)
-                const controller = new AbortController()
-                const timeoutId = setTimeout(() => controller.abort(), 5000)
+            console.log('Using WebSocket approach to fetch relay list')
 
-                const response = await fetch(
-                  relayUrl.replace('wss://', 'https://'),
-                  {
-                    method: 'POST',
-                    headers: {
-                      Accept: 'application/nostr+json',
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                      method: 'query',
-                      params: [filter]
-                    }),
-                    signal: controller.signal
+            // Function to get kind 10002 events via WebSocket
+            const getViaWebSocket = relayUrl => {
+              return new Promise(resolve => {
+                try {
+                  const ws = new WebSocket(relayUrl)
+                  let timeoutId = setTimeout(() => {
+                    console.log(`WebSocket timeout for ${relayUrl}`)
+                    ws.close()
+                    resolve(null)
+                  }, 5000)
+
+                  ws.onopen = () => {
+                    console.log(`WebSocket connected to ${relayUrl}`)
+                    const reqId = Math.random().toString(36).substring(7)
+                    ws.send(JSON.stringify(['REQ', reqId, filter]))
                   }
-                ).catch(err => {
-                  console.log(`Fetch error with ${relayUrl}:`, err)
-                  return null
-                })
 
-                clearTimeout(timeoutId)
-
-                if (!response || !response.ok) {
-                  console.log(`Failed to get response from ${relayUrl}`)
-                  return null
-                }
-
-                const data = await response.json()
-                console.log(`Got response from ${relayUrl}:`, data)
-
-                if (data && data.result && data.result.length > 0) {
-                  return data.result[0]
-                }
-
-                return null
-              } catch (error) {
-                console.log(`Error fetching from ${relayUrl}:`, error)
-                return null
-              }
-            })
-
-            // Try a fallback approach using WebSocket directly
-            if (window.WebSocket) {
-              console.log('Trying WebSocket approach as fallback')
-
-              // Function to get kind 10002 events via WebSocket
-              const getViaWebSocket = relayUrl => {
-                return new Promise(resolve => {
-                  try {
-                    const ws = new WebSocket(relayUrl)
-                    let timeoutId = setTimeout(() => {
-                      console.log(`WebSocket timeout for ${relayUrl}`)
-                      ws.close()
-                      resolve(null)
-                    }, 5000)
-
-                    ws.onopen = () => {
-                      console.log(`WebSocket connected to ${relayUrl}`)
-                      const reqId = Math.random().toString(36).substring(7)
-                      ws.send(JSON.stringify(['REQ', reqId, filter]))
-                    }
-
-                    ws.onmessage = event => {
-                      try {
-                        const data = JSON.parse(event.data)
-                        if (
-                          data[0] === 'EVENT' &&
-                          data[2].kind === 10002 &&
-                          data[2].pubkey === hexPubkey
-                        ) {
-                          console.log(`Got event from ${relayUrl}:`, data[2])
-                          clearTimeout(timeoutId)
-                          ws.close()
-                          resolve(data[2])
-                        } else if (data[0] === 'EOSE') {
-                          console.log(`End of stored events from ${relayUrl}`)
-                          clearTimeout(timeoutId)
-                          ws.close()
-                          resolve(null)
-                        }
-                      } catch (e) {
-                        console.log(`Error parsing WebSocket message:`, e)
+                  ws.onmessage = event => {
+                    try {
+                      const data = JSON.parse(event.data)
+                      if (
+                        data[0] === 'EVENT' &&
+                        data[2].kind === 10002 &&
+                        data[2].pubkey === hexPubkey
+                      ) {
+                        console.log(`Got event from ${relayUrl}:`, data[2])
+                        clearTimeout(timeoutId)
+                        ws.close()
+                        resolve(data[2])
+                      } else if (data[0] === 'EOSE') {
+                        console.log(`End of stored events from ${relayUrl}`)
+                        clearTimeout(timeoutId)
+                        ws.close()
+                        resolve(null)
                       }
+                    } catch (e) {
+                      console.log(`Error parsing WebSocket message:`, e)
                     }
+                  }
 
-                    ws.onerror = () => {
-                      console.log(`WebSocket error for ${relayUrl}`)
-                      clearTimeout(timeoutId)
-                      ws.close()
-                      resolve(null)
-                    }
-
-                    ws.onclose = () => {
-                      clearTimeout(timeoutId)
-                      resolve(null)
-                    }
-                  } catch (e) {
-                    console.log(`Error creating WebSocket:`, e)
+                  ws.onerror = () => {
+                    console.log(`WebSocket error for ${relayUrl}`)
+                    clearTimeout(timeoutId)
+                    ws.close()
                     resolve(null)
                   }
-                })
-              }
 
-              // Add WebSocket promises to the fetch promises
-              this.defaultRelays.forEach(relayUrl => {
-                fetchPromises.push(getViaWebSocket(relayUrl))
+                  ws.onclose = () => {
+                    clearTimeout(timeoutId)
+                    resolve(null)
+                  }
+                } catch (e) {
+                  console.log(`Error creating WebSocket:`, e)
+                  resolve(null)
+                }
               })
             }
+
+            // Create WebSocket promises for all default relays
+            const fetchPromises = this.defaultRelays.map(relayUrl =>
+              getViaWebSocket(relayUrl)
+            )
 
             // Wait for all promises and collect results
             const results = await Promise.all(fetchPromises)
@@ -862,15 +813,44 @@
 
             if (event) {
               try {
-                const relayList = JSON.parse(event.content)
-                const relayUrls = Object.keys(relayList)
+                let relayUrls = []
+
+                // Extract relays from tags array with 'r' prefix
+                if (event.tags && Array.isArray(event.tags)) {
+                  relayUrls = event.tags
+                    .filter(tag => tag.length >= 2 && tag[0] === 'r')
+                    .map(tag => tag[1])
+                    .filter(
+                      url =>
+                        url &&
+                        (url.startsWith('wss://') || url.startsWith('ws://'))
+                    )
+                }
+
+                // Fall back to content parsing if tags didn't yield any results
+                if (
+                  relayUrls.length === 0 &&
+                  event.content &&
+                  event.content.trim() !== ''
+                ) {
+                  try {
+                    const relayList = JSON.parse(event.content)
+                    relayUrls = Object.keys(relayList)
+                  } catch (e) {
+                    console.log(
+                      'Content not valid JSON, ignoring content field'
+                    )
+                  }
+                }
 
                 if (relayUrls && relayUrls.length > 0) {
                   console.log('Found relay list:', relayUrls)
                   return relayUrls
+                } else {
+                  console.log('No relay URLs found in event')
                 }
               } catch (e) {
-                console.log('Error parsing event content:', e)
+                console.log('Error extracting relay information:', e)
               }
             }
 
