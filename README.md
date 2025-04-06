@@ -1,73 +1,24 @@
-# did-nostr-resolver
+# DID-Nostr Resolver
 
-A JavaScript library and CLI tool for working with Nostr Decentralized Identifiers (DIDs).
+![DID-Nostr Resolver](https://img.shields.io/badge/DID-Nostr%20Resolver-6366f1)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-This library implements the unofficial draft specification for the `did:nostr` method, enabling the creation and resolution of DIDs based on Nostr public keys.
+A powerful web-based tool to create and resolve Decentralized Identifiers (DIDs) on the Nostr network, bridging the gap between Nostr identities and the W3C DID ecosystem.
 
-## Installation
+## 🚀 Features
 
-```bash
-npm install did-nostr-resolver
-```
+- **Create DIDs** from Nostr public keys with simple, user-friendly interface
+- **Resolve DID Documents** from existing Nostr DIDs
+- **Fetch Relays** automatically from Nostr metadata (kind 10002 events)
+- **Support for npub format** for easy integration with Nostr ecosystem
+- **Elegant UI/UX** with responsive design and animations
+- **Zero server dependencies** - runs entirely in the browser
 
-## Usage
+## 📋 About DID-Nostr Method
 
-### As a Library
+The Nostr DID method (`did:nostr`) enables decentralized identifiers on the Nostr network, providing a standardized way to reference Nostr public keys in the W3C DID ecosystem.
 
-```javascript
-const {
-  createDidNostr,
-  createDidNostrDocument,
-  resolveDidNostr
-} = require('did-nostr-resolver')
-
-// Create a DID from a Nostr public key
-const pubkey =
-  '124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2'
-const did = createDidNostr(pubkey)
-console.log(did)
-// Output: did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2
-
-// Create a DID document with relays
-const didDocument = createDidNostrDocument(pubkey, {
-  relays: ['wss://relay.example.org/']
-})
-console.log(JSON.stringify(didDocument, null, 2))
-
-// Resolve a DID to a DID document
-const resolvedDocument = resolveDidNostr(
-  'did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2'
-)
-console.log(JSON.stringify(resolvedDocument, null, 2))
-```
-
-### As a CLI Tool
-
-After installation, you can use the CLI tool to create and resolve DIDs:
-
-```bash
-# Create a DID document from a public key
-npx did-nostr-resolver create 124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2
-
-# Create a DID document with relay information
-npx did-nostr-resolver create 124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2 wss://relay.example.org/
-
-# Resolve a DID to its DID document
-npx did-nostr-resolver resolve did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2
-```
-
-The output will be displayed in the console and also saved to a file named after the DID (with colons replaced by hyphens).
-
-### Web Interface
-
-The repository includes an `index.html` file that provides a web interface for working with DID-Nostr identifiers. To use it:
-
-1. Open the `index.html` file in a web browser
-2. Enter a Nostr public key or DID to create or resolve a DID document
-3. Optionally add relay information
-4. The resulting DID document will be displayed on the page
-
-## DID Format
+### DID Format
 
 Nostr DIDs follow this format:
 
@@ -75,76 +26,102 @@ Nostr DIDs follow this format:
 did:nostr:<64-character-lowercase-public-key>
 ```
 
-Example:
-
-```
-did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2
-```
-
-## Example DID Document
-
-When a Nostr DID is resolved, it produces a DID Document like this:
+### Example DID Document
 
 ```json
 {
-  "@context": ["https://w3id.org/did/v1", "https://w3id.org/nostr/v1"],
+  "@context": ["https://w3id.org/did", "https://w3id.org/nostr/context"],
   "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2",
-  "publicKey": [
+  "verificationMethod": [
     {
       "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#key1",
       "controller": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2",
-      "type": "SchnorrVerification2023",
-      "publicKeyHex": "124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2"
+      "type": "SchnorrVerification2023"
     }
   ],
-  "authentication": [
-    "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#key1"
-  ],
-  "assertionMethod": [
-    "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#key1"
-  ],
+  "authentication": ["#key1"],
+  "assertionMethod": ["#key1"],
   "service": [
     {
       "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#relay1",
-      "type": "NostrRelay",
-      "serviceEndpoint": "wss://relay.example.org/"
+      "type": "Relay",
+      "serviceEndpoint": "wss://relay.example.org"
     }
   ]
 }
 ```
 
-## Key Features
+## 🔍 Key Features
 
-- **Schnorr Signatures**: Uses the same cryptographic signature scheme as Nostr
-- **Relay Declaration**: Service fields allow declaring associated Nostr relays
-- **Simple Creation**: Generate a key pair and encode the public key as a 64-character string
-- **Deterministic Resolution**: DID documents can be deterministically generated from the public key
+- **Schnorr Signatures** - Uses the same cryptographic signature scheme as Nostr for maximum compatibility
+- **Relay Declaration** - Service fields allow declaring associated Nostr relays for discovery
+- **Simple Creation** - Generate a key pair and encode the public key as a 64-character string
+- **Deterministic Resolution** - DID documents can be deterministically generated from the public key
 
-## Functions
+## 🛠️ Installation and Usage
 
-The library provides the following functions:
+The DID-Nostr Resolver is a fully client-side application with no backend dependencies. You can:
 
-- `isValidNostrPubkey(pubkey)`: Validates if a string is a valid 64-character hex Nostr public key
-- `npubToHex(npub)`: Placeholder for converting an npub to a hex public key (requires external Bech32 library)
-- `createDidNostr(pubkey)`: Creates a DID-Nostr identifier from a Nostr public key
-- `createDidNostrDocument(pubkey, options)`: Creates a complete DID Document for a Nostr public key
-- `resolveDidNostr(did, options)`: Resolves a DID-Nostr identifier to its DID Document
+1. **Clone and run locally**:
 
-## Relationship with Nostr npubs
+   ```bash
+   git clone https://github.com/nostr-labs/did-nostr-resolver.git
+   cd did-nostr-resolver
+   # Serve with any static file server
+   npx serve
+   ```
 
-In the Nostr ecosystem, public keys are often displayed as "npubs" (e.g., `npub1...`), which are Bech32 encoded versions of the raw public keys for human-friendly display. It's important to note:
+2. **Host on any static file hosting**:
+   The entire application consists of a single HTML file with embedded JavaScript, making it suitable for deployment on GitHub Pages, Netlify, Vercel, or any static hosting provider.
 
-- Nostr DIDs use the raw 64-character hexadecimal public key, not the npub format
-- npubs are for display purposes only and improve readability in user interfaces
+## 🧩 How It Works
 
-## License
+1. **Creating DIDs**:
 
-MIT License
+   - Enter your Nostr public key (64-character hex)
+   - Optionally add Nostr relays or fetch them automatically from the network
+   - Generate a W3C-compliant DID document that maps your identity to the Nostr ecosystem
 
-## Credits
+2. **Resolving DIDs**:
 
-This library implements the unofficial draft specification for the `did:nostr` method being developed within the W3C Nostr Community Group. The specification is inspired by [did-nostr](https://github.com/melvincarvalho/did-nostr).
+   - Enter a DID in the format `did:nostr:<pubkey>`
+   - Optionally specify relays for discovery
+   - View the resolved DID document with verification methods and service endpoints
 
-## Contributing
+3. **Fetching Relays**:
+   - For existing Nostr users, automatically fetch their preferred relays from kind 10002 events
+   - Simplifies the process of configuring relays without manual entry
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 🔐 Security and Privacy
+
+- All processing happens client-side in the browser
+- No keys or sensitive data ever leave your device
+- Zero network requests except to fetch relay lists (when requested)
+- The tool never requests or stores private keys
+
+## 🧪 Technical Details
+
+- Built with Preact for lightweight DOM operations
+- Uses NostrTools library for Nostr protocol interactions
+- Implements WebSocket and HTTP API fallbacks for maximum relay compatibility
+- Follows W3C DID specifications for document structure
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+
+- Open issues for bugs or feature requests
+- Submit pull requests for improvements
+- Help expand documentation or examples
+
+## 📜 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 💬 Contact
+
+For questions or feedback about DID-Nostr Resolver, join the conversation on Nostr or open an issue in this repository.
+
+---
+
+Made with ❤️ for the Nostr and DID communities
