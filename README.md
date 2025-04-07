@@ -11,6 +11,7 @@ A powerful web-based tool to create and resolve Decentralized Identifiers (DIDs)
 - **Resolve DID Documents** from existing Nostr DIDs
 - **Fetch Relays** automatically from Nostr metadata (kind 10002 events)
 - **Support for npub format** for easy integration with Nostr ecosystem
+- **Include profile information** like website and storage from Nostr profiles
 - **Elegant UI/UX** with responsive design and animations
 - **Zero server dependencies** - runs entirely in the browser
 
@@ -46,6 +47,11 @@ did:nostr:<64-character-lowercase-public-key>
       "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#relay1",
       "type": "Relay",
       "serviceEndpoint": "wss://relay.example.org"
+    },
+    {
+      "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#website",
+      "type": ["Website", "LinkedDomains"],
+      "serviceEndpoint": "https://example.com"
     }
   ]
 }
@@ -57,8 +63,11 @@ did:nostr:<64-character-lowercase-public-key>
 - **Relay Declaration** - Service fields allow declaring associated Nostr relays for discovery
 - **Simple Creation** - Generate a key pair and encode the public key as a 64-character string
 - **Deterministic Resolution** - DID documents can be deterministically generated from the public key
+- **Profile Integration** - Include website and storage information from Nostr profiles
 
 ## 🛠️ Installation and Usage
+
+### Web Interface
 
 The DID-Nostr Resolver is a fully client-side application with no backend dependencies. You can:
 
@@ -74,6 +83,51 @@ The DID-Nostr Resolver is a fully client-side application with no backend depend
 2. **Host on any static file hosting**:
    The entire application consists of a single HTML file with embedded JavaScript, making it suitable for deployment on GitHub Pages, Netlify, Vercel, or any static hosting provider.
 
+### Command-Line Interface
+
+The DID-Nostr Resolver also includes a command-line interface (CLI) for creating and resolving DIDs:
+
+1. **Install the CLI**:
+
+   ```bash
+   git clone https://github.com/nostr-labs/did-nostr-resolver.git
+   cd did-nostr-resolver
+   npm install
+   chmod +x bin/cli.js
+   ```
+
+2. **Create a DID**:
+
+   ```bash
+   # Basic usage
+   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
+
+   # With specific relays
+   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --relays=wss://relay.damus.io,wss://nos.lol
+
+   # Include website and storage from Nostr profile
+   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
+
+   # Save output to file
+   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --output=mydid.json
+   ```
+
+3. **Resolve a DID**:
+
+   ```bash
+   # Basic usage
+   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
+
+   # Include website and storage from Nostr profile
+   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
+   ```
+
+4. **Get help**:
+
+   ```bash
+   bin/cli.js help
+   ```
+
 ## 🧩 How It Works
 
 1. **Creating DIDs**:
@@ -88,22 +142,22 @@ The DID-Nostr Resolver is a fully client-side application with no backend depend
    - Optionally specify relays for discovery
    - View the resolved DID document with verification methods and service endpoints
 
-3. **Fetching Relays**:
-   - For existing Nostr users, automatically fetch their preferred relays from kind 10002 events
-   - Simplifies the process of configuring relays without manual entry
+3. **Fetching Profile Information**:
+   - For existing Nostr users, automatically fetch their profile information
+   - Extract website URLs and storage endpoints to include in the DID document
 
 ## 🔐 Security and Privacy
 
 - All processing happens client-side in the browser
 - No keys or sensitive data ever leave your device
-- Zero network requests except to fetch relay lists (when requested)
+- Zero network requests except to fetch relay lists and profiles (when requested)
 - The tool never requests or stores private keys
 
 ## 🧪 Technical Details
 
 - Built with Preact for lightweight DOM operations
-- Uses NostrTools library for Nostr protocol interactions
-- Implements WebSocket and HTTP API fallbacks for maximum relay compatibility
+- Uses WebSocket for Nostr protocol interactions
+- CLI tool compatible with both Node.js and browser environments
 - Follows W3C DID specifications for document structure
 
 ## 🤝 Contributing
