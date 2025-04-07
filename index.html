@@ -666,6 +666,21 @@
             })
           }
 
+          // Add storage endpoints from profile if available
+          if (
+            options.storage &&
+            Array.isArray(options.storage) &&
+            options.storage.length > 0
+          ) {
+            options.storage.forEach((endpoint, index) => {
+              services.push({
+                id: `${did}#storage${index + 1}`,
+                type: 'Storage',
+                serviceEndpoint: endpoint
+              })
+            })
+          }
+
           // Only add services array if there are services
           if (services.length > 0) {
             didDocument.service = services
@@ -705,6 +720,7 @@
         defaultRelays: [
           'wss://relay.damus.io',
           'wss://nos.lol',
+          'wss://ditto.pub/relay',
           'wss://relay.nostr.band',
           'wss://nostr.bitcoiner.social'
         ],
@@ -1022,6 +1038,58 @@
           }
 
           return null
+        },
+
+        // Extract storage endpoints from profile data
+        getStorageFromProfile(profileData) {
+          if (!profileData) return null
+
+          // Check for storage field
+          if (profileData.storage) {
+            if (
+              typeof profileData.storage === 'string' &&
+              profileData.storage.trim() !== ''
+            ) {
+              // Handle single storage string
+              let storage = profileData.storage.trim()
+
+              // Ensure storage starts with http:// or https://
+              if (
+                !storage.startsWith('http://') &&
+                !storage.startsWith('https://')
+              ) {
+                storage = 'https://' + storage
+              }
+
+              console.log('Found storage endpoint in profile:', storage)
+              return [storage] // Return as array for consistency
+            } else if (Array.isArray(profileData.storage)) {
+              // Handle array of storage endpoints
+              const storageEndpoints = profileData.storage
+                .filter(s => typeof s === 'string' && s.trim() !== '')
+                .map(s => {
+                  let endpoint = s.trim()
+                  // Ensure each endpoint starts with http:// or https://
+                  if (
+                    !endpoint.startsWith('http://') &&
+                    !endpoint.startsWith('https://')
+                  ) {
+                    endpoint = 'https://' + endpoint
+                  }
+                  return endpoint
+                })
+
+              if (storageEndpoints.length > 0) {
+                console.log(
+                  'Found storage endpoints in profile:',
+                  storageEndpoints
+                )
+                return storageEndpoints
+              }
+            }
+          }
+
+          return null
         }
       }
 
@@ -1292,13 +1360,16 @@
 
           // Try to fetch profile and extract website
           let website = null
+          let storage = null
           try {
             const profileData = await nostrRelayScraper.fetchProfileForPubkey(
               pubkey
             )
             console.log('Raw profile data:', profileData)
             website = nostrRelayScraper.getWebsiteFromProfile(profileData)
+            storage = nostrRelayScraper.getStorageFromProfile(profileData)
             console.log('Extracted website:', website)
+            console.log('Extracted storage:', storage)
             setProfileWebsite(website)
           } catch (e) {
             console.log('Error fetching profile:', e)
@@ -1309,7 +1380,8 @@
             pubkey,
             {
               relays: relays.filter(r => r.trim() !== ''),
-              website: website // Use the direct website value, not the state
+              website: website, // Use the direct website value, not the state
+              storage: storage
             }
           )
 
@@ -1416,13 +1488,16 @@
 
           // Try to fetch profile and extract website
           let website = null
+          let storage = null
           try {
             const profileData = await nostrRelayScraper.fetchProfileForPubkey(
               pubkey
             )
             console.log('Raw profile data:', profileData)
             website = nostrRelayScraper.getWebsiteFromProfile(profileData)
+            storage = nostrRelayScraper.getStorageFromProfile(profileData)
             console.log('Extracted website:', website)
+            console.log('Extracted storage:', storage)
             setProfileWebsite(website)
           } catch (e) {
             console.log('Error fetching profile:', e)
@@ -1431,7 +1506,8 @@
 
           const didDocument = await didNostrResolver.resolveDidNostr(did, {
             relays: relays.filter(r => r.trim() !== ''),
-            website: website // Use the direct website value, not the state
+            website: website, // Use the direct website value, not the state
+            storage: storage
           })
 
           if (!didDocument) {
@@ -1567,25 +1643,25 @@
 
             <h3>Example</h3>
             <pre><code>{
-  "@context": ["https://w3id.org/did", "https://w3id.org/nostr/context"],
-  "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
-  "verificationMethod": [
-    {
-      "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#key1",
-      "controller": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
-      "type": "SchnorrVerification2023"
-    }
-  ],
-  "authentication": ["#key1"],
-  "assertionMethod": ["#key1"],
-  "service": [
-    {
-      "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#relay1",
-      "type": "Relay",
-      "serviceEndpoint": "wss://relay.example.org"
-    }
-  ]
-}</code></pre>
+        "@context": ["https://w3id.org/did", "https://w3id.org/nostr/context"],
+        "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
+        "verificationMethod": [
+          {
+            "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#key1",
+            "controller": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245",
+            "type": "SchnorrVerification2023"
+          }
+        ],
+        "authentication": ["#key1"],
+        "assertionMethod": ["#key1"],
+        "service": [
+          {
+            "id": "did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245#relay1",
+            "type": "Relay",
+            "serviceEndpoint": "wss://relay.example.org"
+          }
+        ]
+      }</code></pre>
 
             <h3>Relationship with Nostr npubs</h3>
             <p>
