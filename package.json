@@ -1,10 +1,10 @@
 {
   "name": "did-nostr-resolver",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "DID method implementation for Nostr public keys",
   "main": "index.js",
   "bin": {
-    "did-nostr": "bin/cli.js"
+    "did-nostr-resolver": "bin/cli.js"
   },
   "scripts": {
     "start": "serve .",
