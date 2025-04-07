@@ -605,7 +605,7 @@
           return `did:nostr:${pubkey}`
         }
 
-        function createDidNostrDocument(pubkey, options = {}) {
+        async function createDidNostrDocument(pubkey, options = {}) {
           // Support for npub format (partial implementation)
           if (pubkey.startsWith('npub1')) {
             const hexPubkey = npubToHex(pubkey)
@@ -625,7 +625,7 @@
 
           const didDocument = {
             '@context': [
-              'https://w3id.org/did',
+              'https://www.w3.org/ns/did/v1',
               'https://w3id.org/nostr/context'
             ],
             id: did,
@@ -641,22 +641,40 @@
           }
 
           // Add relay services if provided
+          const services = []
+
           if (
             options.relays &&
             Array.isArray(options.relays) &&
             options.relays.length > 0
           ) {
-            didDocument.service = options.relays.map((relay, index) => ({
-              id: `${did}#relay${index + 1}`,
-              type: 'Relay',
-              serviceEndpoint: relay
-            }))
+            options.relays.forEach((relay, index) => {
+              services.push({
+                id: `${did}#relay${index + 1}`,
+                type: 'Relay',
+                serviceEndpoint: relay
+              })
+            })
+          }
+
+          // Add website from profile if available
+          if (options.website) {
+            services.push({
+              id: `${did}#website`,
+              type: ['Website', 'LinkedDomains'],
+              serviceEndpoint: options.website
+            })
+          }
+
+          // Only add services array if there are services
+          if (services.length > 0) {
+            didDocument.service = services
           }
 
           return didDocument
         }
 
-        function resolveDidNostr(did, options = {}) {
+        async function resolveDidNostr(did, options = {}) {
           if (!did || typeof did !== 'string') {
             console.error('Invalid DID provided')
             return null
@@ -688,7 +706,6 @@
           'wss://relay.damus.io',
           'wss://nos.lol',
           'wss://relay.nostr.band',
-          'wss://relay.snort.social',
           'wss://nostr.bitcoiner.social'
         ],
 
@@ -862,6 +879,149 @@
             // Return empty array instead of throwing to avoid UI errors
             return []
           }
+        },
+
+        // New function to fetch profile information
+        async fetchProfileForPubkey(pubkey) {
+          if (!this.isValidPubkey(pubkey)) {
+            throw new Error('Invalid public key format')
+          }
+
+          const hexPubkey = this.normalizePublicKey(pubkey)
+          console.log('Fetching profile for pubkey:', hexPubkey)
+
+          // Create a filter for kind 0 (profile metadata) events
+          const filter = {
+            kinds: [0],
+            authors: [hexPubkey],
+            limit: 1
+          }
+
+          try {
+            console.log('Using WebSocket approach to fetch profile')
+
+            // Function to get kind 0 events via WebSocket
+            const getProfileViaWebSocket = relayUrl => {
+              return new Promise(resolve => {
+                try {
+                  const ws = new WebSocket(relayUrl)
+                  let timeoutId = setTimeout(() => {
+                    console.log(
+                      `WebSocket timeout for profile fetch from ${relayUrl}`
+                    )
+                    ws.close()
+                    resolve(null)
+                  }, 5000)
+
+                  ws.onopen = () => {
+                    console.log(
+                      `WebSocket connected to ${relayUrl} for profile fetch`
+                    )
+                    const reqId = Math.random().toString(36).substring(7)
+                    ws.send(JSON.stringify(['REQ', reqId, filter]))
+                  }
+
+                  ws.onmessage = event => {
+                    try {
+                      const data = JSON.parse(event.data)
+                      if (
+                        data[0] === 'EVENT' &&
+                        data[2].kind === 0 &&
+                        data[2].pubkey === hexPubkey
+                      ) {
+                        console.log(`Got profile from ${relayUrl}:`, data[2])
+                        clearTimeout(timeoutId)
+                        ws.close()
+                        resolve(data[2])
+                      } else if (data[0] === 'EOSE') {
+                        console.log(
+                          `End of stored profile events from ${relayUrl}`
+                        )
+                        clearTimeout(timeoutId)
+                        ws.close()
+                        resolve(null)
+                      }
+                    } catch (e) {
+                      console.log(
+                        `Error parsing WebSocket message for profile:`,
+                        e
+                      )
+                    }
+                  }
+
+                  ws.onerror = () => {
+                    console.log(
+                      `WebSocket error for profile fetch from ${relayUrl}`
+                    )
+                    clearTimeout(timeoutId)
+                    ws.close()
+                    resolve(null)
+                  }
+
+                  ws.onclose = () => {
+                    clearTimeout(timeoutId)
+                    resolve(null)
+                  }
+                } catch (e) {
+                  console.log(`Error creating WebSocket for profile fetch:`, e)
+                  resolve(null)
+                }
+              })
+            }
+
+            // Create WebSocket promises for all default relays
+            const fetchPromises = this.defaultRelays.map(relayUrl =>
+              getProfileViaWebSocket(relayUrl)
+            )
+
+            // Wait for all promises and collect results
+            const results = await Promise.all(fetchPromises)
+            const profileEvent = results.find(result => result !== null)
+
+            if (profileEvent && profileEvent.content) {
+              try {
+                const profileData = JSON.parse(profileEvent.content)
+                console.log('Found profile data:', profileData)
+                return profileData
+              } catch (e) {
+                console.log('Error parsing profile JSON:', e)
+              }
+            }
+
+            // If we get here, no profile was found or it couldn't be parsed
+            console.log('No valid profile found')
+            return null
+          } catch (e) {
+            console.error('Error in fetchProfileForPubkey:', e)
+            return null
+          }
+        },
+
+        // Extract website from profile data
+        getWebsiteFromProfile(profileData) {
+          if (!profileData) return null
+
+          // Check for website field
+          if (
+            profileData.website &&
+            typeof profileData.website === 'string' &&
+            profileData.website.trim() !== ''
+          ) {
+            let website = profileData.website.trim()
+
+            // Ensure website starts with http:// or https://
+            if (
+              !website.startsWith('http://') &&
+              !website.startsWith('https://')
+            ) {
+              website = 'https://' + website
+            }
+
+            console.log('Found website in profile:', website)
+            return website
+          }
+
+          return null
         }
       }
 
@@ -1106,6 +1266,7 @@
         const [error, setError] = useState('')
         const [result, setResult] = useState('')
         const [showResult, setShowResult] = useState(false)
+        const [profileWebsite, setProfileWebsite] = useState(null)
 
         const handleCreate = async () => {
           setError('')
@@ -1129,9 +1290,28 @@
             return
           }
 
-          const didDocument = didNostrResolver.createDidNostrDocument(pubkey, {
-            relays: relays.filter(r => r.trim() !== '')
-          })
+          // Try to fetch profile and extract website
+          let website = null
+          try {
+            const profileData = await nostrRelayScraper.fetchProfileForPubkey(
+              pubkey
+            )
+            console.log('Raw profile data:', profileData)
+            website = nostrRelayScraper.getWebsiteFromProfile(profileData)
+            console.log('Extracted website:', website)
+            setProfileWebsite(website)
+          } catch (e) {
+            console.log('Error fetching profile:', e)
+            // Continue even if profile fetch fails
+          }
+
+          const didDocument = await didNostrResolver.createDidNostrDocument(
+            pubkey,
+            {
+              relays: relays.filter(r => r.trim() !== ''),
+              website: website // Use the direct website value, not the state
+            }
+          )
 
           setIsLoading(false)
           setResult(JSON.stringify(didDocument, null, 2))
@@ -1208,6 +1388,7 @@
         const [error, setError] = useState('')
         const [result, setResult] = useState('')
         const [showResult, setShowResult] = useState(false)
+        const [profileWebsite, setProfileWebsite] = useState(null)
 
         const handleResolve = async () => {
           setError('')
@@ -1223,8 +1404,34 @@
             return
           }
 
-          const didDocument = didNostrResolver.resolveDidNostr(did, {
-            relays: relays.filter(r => r.trim() !== '')
+          // Extract pubkey from DID
+          const didMatch = did.match(/^did:nostr:([0-9a-f]{64})$/)
+          if (!didMatch) {
+            setError('Invalid DID-Nostr format')
+            setIsLoading(false)
+            return
+          }
+
+          const pubkey = didMatch[1]
+
+          // Try to fetch profile and extract website
+          let website = null
+          try {
+            const profileData = await nostrRelayScraper.fetchProfileForPubkey(
+              pubkey
+            )
+            console.log('Raw profile data:', profileData)
+            website = nostrRelayScraper.getWebsiteFromProfile(profileData)
+            console.log('Extracted website:', website)
+            setProfileWebsite(website)
+          } catch (e) {
+            console.log('Error fetching profile:', e)
+            // Continue even if profile fetch fails
+          }
+
+          const didDocument = await didNostrResolver.resolveDidNostr(did, {
+            relays: relays.filter(r => r.trim() !== ''),
+            website: website // Use the direct website value, not the state
           })
 
           if (!didDocument) {
@@ -1266,7 +1473,9 @@
               tooltip="Add Nostr relays to fetch data from"
               initialRelays=${relays}
               onChange=${setRelays}
-              pubkey=${did}
+              pubkey=${did.includes('did:nostr:')
+                ? did.replace('did:nostr:', '')
+                : null}
             />
 
             <div className="form-group">
