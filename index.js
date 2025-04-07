@@ -94,15 +94,63 @@
         return NostrTools.nip19.decode(npub).data;
       } catch (e) {
         console.warn('Error decoding npub:', e);
+        // Fall through to crude implementation
+      }
+    }
+
+    // Crude implementation by chopping off prefix and checksum suffix
+    if (typeof npub === 'string' && npub.startsWith('npub1') && npub.length >= 60) {
+      try {
+        // Define the Bech32 character set (excluding '1')
+        const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+        // Remove 'npub1' prefix
+        let bech32Data = npub.substring(5);
+
+        // Remove the last 6 characters (checksum)
+        bech32Data = bech32Data.substring(0, bech32Data.length - 6);
+
+        // Convert Bech32 to binary data
+        let binary = '';
+        for (let i = 0; i < bech32Data.length; i++) {
+          const char = bech32Data[i];
+          const val = BECH32_CHARSET.indexOf(char);
+          if (val === -1) {
+            console.warn('Invalid character in npub:', char);
+            return null;
+          }
+          // Convert to 5-bit binary string
+          binary += val.toString(2).padStart(5, '0');
+        }
+
+        // Remove padding bits if needed (we need multiple of 8 bits for bytes)
+        const excessBits = binary.length % 8;
+        if (excessBits !== 0) {
+          binary = binary.substring(0, binary.length - excessBits);
+        }
+
+        // Convert binary string to hex
+        let hex = '';
+        for (let i = 0; i < binary.length; i += 8) {
+          const byte = binary.substring(i, i + 8);
+          const decimal = parseInt(byte, 2);
+          hex += decimal.toString(16).padStart(2, '0');
+        }
+
+        // Check if the result is a valid 64-character hex string
+        if (hex.length === 64 && /^[0-9a-f]{64}$/i.test(hex)) {
+          console.log('Crude npub decoding successful');
+          return hex;
+        } else {
+          console.warn('Crude npub decoding produced invalid hex:', hex);
+          return null;
+        }
+      } catch (e) {
+        console.warn('Error in crude npub decoding:', e);
         return null;
       }
     }
 
-    // For demonstration purposes, we're just checking the format
-    if (typeof npub === 'string' && npub.startsWith('npub1') && npub.length >= 60) {
-      console.warn('Real npub conversion requires a Bech32 library');
-      return null;
-    }
     return null;
   }
 
