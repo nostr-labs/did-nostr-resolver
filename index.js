@@ -278,22 +278,48 @@
       const getViaWebSocket = relayUrl => {
         return new Promise(resolve => {
           try {
-            const ws = new WebSocket(relayUrl);
+            // Check if we're in a Node.js environment and use the ws package if needed
+            let ws;
+            let isNodeWs = false;
+
+            if (typeof WebSocket !== 'undefined') {
+              // Browser environment
+              ws = new WebSocket(relayUrl);
+            } else if (typeof require !== 'undefined') {
+              // Node.js environment
+              try {
+                const WebSocketNode = require('ws');
+                ws = new WebSocketNode(relayUrl);
+                isNodeWs = true;
+              } catch (wsError) {
+                console.log('Failed to require ws package:', wsError.message);
+                resolve(null);
+                return;
+              }
+            } else {
+              console.log('No WebSocket implementation available');
+              resolve(null);
+              return;
+            }
+
             let timeoutId = setTimeout(() => {
               console.log(`WebSocket timeout for ${relayUrl}`);
               ws.close();
               resolve(null);
             }, 5000);
 
-            ws.onopen = () => {
+            const handleOpen = () => {
               console.log(`WebSocket connected to ${relayUrl}`);
               const reqId = Math.random().toString(36).substring(7);
               ws.send(JSON.stringify(['REQ', reqId, filter]));
             };
 
-            ws.onmessage = event => {
+            const handleMessage = (event) => {
               try {
-                const data = JSON.parse(event.data);
+                // Handle different event data format between browser and Node.js
+                const rawData = isNodeWs ? event : event.data;
+                const data = JSON.parse(rawData);
+
                 if (
                   data[0] === 'EVENT' &&
                   data[2].kind === 10002 &&
@@ -314,17 +340,32 @@
               }
             };
 
-            ws.onerror = () => {
-              console.log(`WebSocket error for ${relayUrl}`);
+            const handleError = (error) => {
+              console.log(`WebSocket error for ${relayUrl}:`, error ? error.message : 'Unknown error');
               clearTimeout(timeoutId);
               ws.close();
               resolve(null);
             };
 
-            ws.onclose = () => {
+            const handleClose = () => {
               clearTimeout(timeoutId);
               resolve(null);
             };
+
+            // Set up event handlers based on environment
+            if (isNodeWs) {
+              // Node.js ws package event handling
+              ws.on('open', handleOpen);
+              ws.on('message', handleMessage);
+              ws.on('error', handleError);
+              ws.on('close', handleClose);
+            } else {
+              // Browser WebSocket event handling
+              ws.onopen = handleOpen;
+              ws.onmessage = handleMessage;
+              ws.onerror = handleError;
+              ws.onclose = handleClose;
+            }
           } catch (e) {
             console.log(`Error creating WebSocket:`, e);
             resolve(null);

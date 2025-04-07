@@ -99,11 +99,14 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
 2. **Create a DID**:
 
    ```bash
-   # Basic usage
+   # Basic usage (only includes relays if found in kind 10002 events)
    bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
 
-   # With specific relays
+   # With specific relays (disables automatic relay fetching)
    bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --relays=wss://relay.damus.io,wss://nos.lol
+
+   # Force using default relays without fetching from network
+   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
 
    # Include website and storage from Nostr profile
    bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
@@ -115,11 +118,14 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
 3. **Resolve a DID**:
 
    ```bash
-   # Basic usage
+   # Basic usage (only includes relays if found in kind 10002 events)
    bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
 
    # Include website and storage from Nostr profile
    bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
+
+   # Disable automatic relay fetching (use default relays)
+   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
    ```
 
 4. **Get help**:
