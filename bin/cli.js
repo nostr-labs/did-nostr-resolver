@@ -39,8 +39,8 @@ function printHeader () {
 function showHelp () {
   printHeader();
   console.log(`${colors.bright}Usage:${colors.reset}`);
-  console.log('  did-nostr-cli create <pubkey> [--relays=wss://relay1.com,wss://relay2.com]');
-  console.log('  did-nostr-cli resolve <did>');
+  console.log('  did-nostr-resolver create <pubkey> [--relays=wss://relay1.com,wss://relay2.com]');
+  console.log('  did-nostr-resolver resolve <did>');
   console.log('');
   console.log(`${colors.bright}Commands:${colors.reset}`);
   console.log(`  ${colors.green}create${colors.reset}  - Create a DID document from a Nostr public key`);
@@ -53,19 +53,22 @@ function showHelp () {
   console.log('  --no-profile       - Skip fetching profile information');
   console.log('  --fetch-relays     - Fetch relay list from Nostr network (kind 10002 events)');
   console.log('  --no-fetch-relays  - Skip fetching relay list from Nostr network');
+  console.log('  -v, --verbose      - Enable verbose output (quiet mode is default)');
   console.log('');
   console.log(`${colors.bright}Default Behavior:${colors.reset}`);
-  console.log('  By default, the CLI will attempt to fetch relays from the Nostr network (kind 10002 events).');
+  console.log('  By default, the CLI runs in quiet mode, outputting only the DID document JSON.');
+  console.log('  The CLI will attempt to fetch relays from the Nostr network (kind 10002 events).');
   console.log('  Relays will ONLY be included in the DID document if found in kind 10002 events.');
   console.log('  If no relays are found, the DID document will not include any relay endpoints.');
   console.log('  Use --no-fetch-relays to include the default relays instead.');
   console.log('  Specify your own relays with --relays=... to override this behavior.');
   console.log('');
   console.log(`${colors.bright}Examples:${colors.reset}`);
-  console.log('  did-nostr-cli create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
-  console.log('  did-nostr-cli create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile');
-  console.log('  did-nostr-cli create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays');
-  console.log('  did-nostr-cli resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v');
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile');
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays');
+  console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
   console.log('');
 }
 
@@ -84,7 +87,8 @@ function parseOptions (args) {
     relays: [...defaultRelays], // Initialize with the default relays
     output: null,
     includeProfile: true,       // Default to including profile information
-    fetchRelays: true           // Default to fetching relays from kind 10002 events
+    fetchRelays: true,          // Default to fetching relays from kind 10002 events
+    verbose: false              // Default to quiet mode
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -107,10 +111,34 @@ function parseOptions (args) {
       options.fetchRelays = true;
     } else if (args[i] === '--no-fetch-relays') {
       options.fetchRelays = false;
+    } else if (args[i] === '-v' || args[i] === '--verbose') {
+      options.verbose = true;
     }
   }
 
   return options;
+}
+
+// Utility function for logging with verbosity control
+function log (options, message, type = 'info') {
+  if (!options.verbose) return;
+
+  switch (type) {
+    case 'error':
+      console.error(message);
+      break;
+    case 'warn':
+      console.log(`${colors.yellow}${message}${colors.reset}`);
+      break;
+    case 'success':
+      console.log(`${colors.green}${message}${colors.reset}`);
+      break;
+    case 'bright':
+      console.log(`${colors.bright}${message}${colors.reset}`);
+      break;
+    default:
+      console.log(message);
+  }
 }
 
 // Create a DID document from a public key
@@ -137,57 +165,57 @@ async function createDID (pubkey, options) {
       }
     }
 
-    console.log(`${colors.yellow}Creating DID document for public key: ${colors.bright}${pubkey}${colors.reset}`);
+    log(options, `${colors.yellow}Creating DID document for public key: ${colors.bright}${pubkey}${colors.reset}`);
 
     // Initialize relays - only use them if explicitly specified via --relays or found in kind 10002 events
     let relays = options.fetchRelays ? [] : [...options.relays];
 
     // Try to fetch relay list from Nostr network if enabled
     if (options.fetchRelays) {
-      console.log(`${colors.yellow}Fetching relay list from Nostr network (kind 10002 events)...${colors.reset}`);
+      log(options, `${colors.yellow}Fetching relay list from Nostr network (kind 10002 events)...${colors.reset}`);
       try {
-        const fetchedRelays = await resolver.fetchRelaysForPubkey(pubkey);
+        const fetchedRelays = await resolver.fetchRelaysForPubkey(pubkey, { verbose: options.verbose });
         if (fetchedRelays && fetchedRelays.length > 0) {
-          console.log(`${colors.green}Found ${fetchedRelays.length} relays from Nostr metadata${colors.reset}`);
+          log(options, `${colors.green}Found ${fetchedRelays.length} relays from Nostr metadata${colors.reset}`);
           // Use only the fetched relays
           relays = fetchedRelays;
         } else {
-          console.log(`${colors.yellow}No relays found in Nostr metadata, not including any relay endpoints${colors.reset}`);
+          log(options, `${colors.yellow}No relays found in Nostr metadata, not including any relay endpoints${colors.reset}`);
         }
       } catch (error) {
-        console.log(`${colors.yellow}Error fetching relays from Nostr: ${error.message}. Not including any relay endpoints.${colors.reset}`);
+        log(options, `${colors.yellow}Error fetching relays from Nostr: ${error.message}. Not including any relay endpoints.${colors.reset}`);
       }
     }
 
     if (relays.length > 0) {
-      console.log(`${colors.yellow}Including relays: ${colors.reset}${relays.join(', ')}`);
+      log(options, `${colors.yellow}Including relays: ${colors.reset}${relays.join(', ')}`);
     } else {
-      console.log(`${colors.yellow}No relays will be included in the DID document${colors.reset}`);
+      log(options, `${colors.yellow}No relays will be included in the DID document${colors.reset}`);
     }
 
     // Fetch profile information if requested
     let website = null;
     let storage = null;
     if (options.includeProfile) {
-      console.log(`${colors.yellow}Fetching profile information...${colors.reset}`);
+      log(options, `${colors.yellow}Fetching profile information...${colors.reset}`);
       try {
-        const profileData = await resolver.fetchProfileForPubkey(pubkey);
+        const profileData = await resolver.fetchProfileForPubkey(pubkey, { verbose: options.verbose });
         if (profileData) {
-          website = resolver.getWebsiteFromProfile(profileData);
-          storage = resolver.getStorageFromProfile(profileData);
+          website = resolver.getWebsiteFromProfile(profileData, { verbose: options.verbose });
+          storage = resolver.getStorageFromProfile(profileData, { verbose: options.verbose });
 
           if (website) {
-            console.log(`${colors.yellow}Found website: ${colors.reset}${website}`);
+            log(options, `${colors.yellow}Found website: ${colors.reset}${website}`);
           }
 
           if (storage && storage.length > 0) {
-            console.log(`${colors.yellow}Found storage endpoints: ${colors.reset}${storage.join(', ')}`);
+            log(options, `${colors.yellow}Found storage endpoints: ${colors.reset}${storage.join(', ')}`);
           }
         } else {
-          console.log(`${colors.yellow}No profile information found${colors.reset}`);
+          log(options, `${colors.yellow}No profile information found${colors.reset}`);
         }
       } catch (error) {
-        console.log(`${colors.yellow}Error fetching profile: ${error.message}${colors.reset}`);
+        log(options, `${colors.yellow}Error fetching profile: ${error.message}${colors.reset}`);
       }
     }
 
@@ -209,13 +237,13 @@ async function createDID (pubkey, options) {
     if (options.output) {
       try {
         fs.writeFileSync(options.output, output);
-        console.log(`${colors.green}DID document saved to ${options.output}${colors.reset}`);
+        log(options, `${colors.green}DID document saved to ${options.output}${colors.reset}`);
       } catch (error) {
         console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
         return 1;
       }
     } else {
-      console.log(`${colors.bright}DID Document:${colors.reset}`);
+      log(options, `${colors.bright}DID Document:${colors.reset}`);
       console.log(output);
     }
     return 0;
@@ -233,7 +261,7 @@ async function resolveDID (did, options) {
       return 1;
     }
 
-    console.log(`${colors.yellow}Resolving DID: ${colors.bright}${did}${colors.reset}`);
+    log(options, `${colors.yellow}Resolving DID: ${colors.bright}${did}${colors.reset}`);
 
     // Extract pubkey from DID
     const didMatch = did.match(/^did:nostr:([0-9a-f]{64})$/i);
@@ -249,50 +277,50 @@ async function resolveDID (did, options) {
 
     // Try to fetch relay list from Nostr network if enabled
     if (options.fetchRelays) {
-      console.log(`${colors.yellow}Fetching relay list from Nostr network (kind 10002 events)...${colors.reset}`);
+      log(options, `${colors.yellow}Fetching relay list from Nostr network (kind 10002 events)...${colors.reset}`);
       try {
-        const fetchedRelays = await resolver.fetchRelaysForPubkey(pubkey);
+        const fetchedRelays = await resolver.fetchRelaysForPubkey(pubkey, { verbose: options.verbose });
         if (fetchedRelays && fetchedRelays.length > 0) {
-          console.log(`${colors.green}Found ${fetchedRelays.length} relays from Nostr metadata${colors.reset}`);
+          log(options, `${colors.green}Found ${fetchedRelays.length} relays from Nostr metadata${colors.reset}`);
           // Use only the fetched relays
           relays = fetchedRelays;
         } else {
-          console.log(`${colors.yellow}No relays found in Nostr metadata, not including any relay endpoints${colors.reset}`);
+          log(options, `${colors.yellow}No relays found in Nostr metadata, not including any relay endpoints${colors.reset}`);
         }
       } catch (error) {
-        console.log(`${colors.yellow}Error fetching relays from Nostr: ${error.message}. Not including any relay endpoints.${colors.reset}`);
+        log(options, `${colors.yellow}Error fetching relays from Nostr: ${error.message}. Not including any relay endpoints.${colors.reset}`);
       }
     }
 
     if (relays.length > 0) {
-      console.log(`${colors.yellow}Including relays: ${colors.reset}${relays.join(', ')}`);
+      log(options, `${colors.yellow}Including relays: ${colors.reset}${relays.join(', ')}`);
     } else {
-      console.log(`${colors.yellow}No relays will be included in the DID document${colors.reset}`);
+      log(options, `${colors.yellow}No relays will be included in the DID document${colors.reset}`);
     }
 
     // Fetch profile information if requested
     let website = null;
     let storage = null;
     if (options.includeProfile) {
-      console.log(`${colors.yellow}Fetching profile information...${colors.reset}`);
+      log(options, `${colors.yellow}Fetching profile information...${colors.reset}`);
       try {
-        const profileData = await resolver.fetchProfileForPubkey(pubkey);
+        const profileData = await resolver.fetchProfileForPubkey(pubkey, { verbose: options.verbose });
         if (profileData) {
-          website = resolver.getWebsiteFromProfile(profileData);
-          storage = resolver.getStorageFromProfile(profileData);
+          website = resolver.getWebsiteFromProfile(profileData, { verbose: options.verbose });
+          storage = resolver.getStorageFromProfile(profileData, { verbose: options.verbose });
 
           if (website) {
-            console.log(`${colors.yellow}Found website: ${colors.reset}${website}`);
+            log(options, `${colors.yellow}Found website: ${colors.reset}${website}`);
           }
 
           if (storage && storage.length > 0) {
-            console.log(`${colors.yellow}Found storage endpoints: ${colors.reset}${storage.join(', ')}`);
+            log(options, `${colors.yellow}Found storage endpoints: ${colors.reset}${storage.join(', ')}`);
           }
         } else {
-          console.log(`${colors.yellow}No profile information found${colors.reset}`);
+          log(options, `${colors.yellow}No profile information found${colors.reset}`);
         }
       } catch (error) {
-        console.log(`${colors.yellow}Error fetching profile: ${error.message}${colors.reset}`);
+        log(options, `${colors.yellow}Error fetching profile: ${error.message}${colors.reset}`);
       }
     }
 
@@ -314,13 +342,13 @@ async function resolveDID (did, options) {
     if (options.output) {
       try {
         fs.writeFileSync(options.output, output);
-        console.log(`${colors.green}DID document saved to ${options.output}${colors.reset}`);
+        log(options, `${colors.green}DID document saved to ${options.output}${colors.reset}`);
       } catch (error) {
         console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
         return 1;
       }
     } else {
-      console.log(`${colors.bright}DID Document:${colors.reset}`);
+      log(options, `${colors.bright}DID Document:${colors.reset}`);
       console.log(output);
     }
     return 0;

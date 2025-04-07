@@ -245,15 +245,25 @@
   /**
    * Fetch relays for a Nostr public key
    * @param {string} pubkey - The Nostr public key (hex or npub)
+   * @param {object} [options] - Additional options
+   * @param {boolean} [options.verbose] - Whether to log verbose output
    * @returns {Promise<string[]>} - Array of relay URLs
    */
-  async function fetchRelaysForPubkey (pubkey) {
+  async function fetchRelaysForPubkey (pubkey, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
     if (!isValidPubkey(pubkey)) {
       throw new Error('Invalid public key format');
     }
 
     const hexPubkey = normalizePublicKey(pubkey);
-    console.log('Fetching relay list for pubkey:', hexPubkey);
+    log('Fetching relay list for pubkey: ' + hexPubkey);
 
     // Create a filter for kind 10002 (relay list metadata) events
     const filter = {
@@ -272,7 +282,7 @@
     ];
 
     try {
-      console.log('Using WebSocket approach to fetch relay list');
+      log('Using WebSocket approach to fetch relay list');
 
       // Function to get kind 10002 events via WebSocket
       const getViaWebSocket = relayUrl => {
@@ -292,24 +302,24 @@
                 ws = new WebSocketNode(relayUrl);
                 isNodeWs = true;
               } catch (wsError) {
-                console.log('Failed to require ws package:', wsError.message);
+                log('Failed to require ws package: ' + wsError.message);
                 resolve(null);
                 return;
               }
             } else {
-              console.log('No WebSocket implementation available');
+              log('No WebSocket implementation available');
               resolve(null);
               return;
             }
 
             let timeoutId = setTimeout(() => {
-              console.log(`WebSocket timeout for ${relayUrl}`);
+              log(`WebSocket timeout for ${relayUrl}`);
               ws.close();
               resolve(null);
             }, 5000);
 
             const handleOpen = () => {
-              console.log(`WebSocket connected to ${relayUrl}`);
+              log(`WebSocket connected to ${relayUrl}`);
               const reqId = Math.random().toString(36).substring(7);
               ws.send(JSON.stringify(['REQ', reqId, filter]));
             };
@@ -325,23 +335,23 @@
                   data[2].kind === 10002 &&
                   data[2].pubkey === hexPubkey
                 ) {
-                  console.log(`Got event from ${relayUrl}:`, data[2]);
+                  log(`Got event from ${relayUrl}: ${JSON.stringify(data[2])}`);
                   clearTimeout(timeoutId);
                   ws.close();
                   resolve(data[2]);
                 } else if (data[0] === 'EOSE') {
-                  console.log(`End of stored events from ${relayUrl}`);
+                  log(`End of stored events from ${relayUrl}`);
                   clearTimeout(timeoutId);
                   ws.close();
                   resolve(null);
                 }
               } catch (e) {
-                console.log(`Error parsing WebSocket message:`, e);
+                log(`Error parsing WebSocket message: ${e}`);
               }
             };
 
             const handleError = (error) => {
-              console.log(`WebSocket error for ${relayUrl}:`, error ? error.message : 'Unknown error');
+              log(`WebSocket error for ${relayUrl}: ${error ? error.message : 'Unknown error'}`);
               clearTimeout(timeoutId);
               ws.close();
               resolve(null);
@@ -367,7 +377,7 @@
               ws.onclose = handleClose;
             }
           } catch (e) {
-            console.log(`Error creating WebSocket:`, e);
+            log(`Error creating WebSocket: ${e}`);
             resolve(null);
           }
         });
@@ -408,28 +418,26 @@
               const relayList = JSON.parse(event.content);
               relayUrls = Object.keys(relayList);
             } catch (e) {
-              console.log(
-                'Content not valid JSON, ignoring content field'
-              );
+              log('Content not valid JSON, ignoring content field');
             }
           }
 
           if (relayUrls && relayUrls.length > 0) {
-            console.log('Found relay list:', relayUrls);
+            log('Found relay list: ' + JSON.stringify(relayUrls));
             return relayUrls;
           } else {
-            console.log('No relay URLs found in event');
+            log('No relay URLs found in event');
           }
         } catch (e) {
-          console.log('Error extracting relay information:', e);
+          log('Error extracting relay information: ' + e);
         }
       }
 
       // If we get here, no relays were found
-      console.log('No relay list found');
+      log('No relay list found');
       return [];
     } catch (e) {
-      console.error('Error in fetchRelaysForPubkey:', e);
+      if (verbose) console.error('Error in fetchRelaysForPubkey:', e);
       // Return empty array instead of throwing to avoid UI errors
       return [];
     }
@@ -438,15 +446,25 @@
   /**
    * Fetch profile information for a Nostr public key
    * @param {string} pubkey - The Nostr public key (hex or npub)
+   * @param {object} [options] - Additional options
+   * @param {boolean} [options.verbose] - Whether to log verbose output
    * @returns {Promise<object|null>} - Profile data or null if not found
    */
-  async function fetchProfileForPubkey (pubkey) {
+  async function fetchProfileForPubkey (pubkey, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
     if (!isValidPubkey(pubkey)) {
       throw new Error('Invalid public key format');
     }
 
     const hexPubkey = normalizePublicKey(pubkey);
-    console.log('Fetching profile for pubkey:', hexPubkey);
+    log('Fetching profile for pubkey: ' + hexPubkey);
 
     // Create a filter for kind 0 (profile metadata) events
     const filter = {
@@ -465,7 +483,7 @@
     ];
 
     try {
-      console.log('Using WebSocket approach to fetch profile');
+      log('Using WebSocket approach to fetch profile');
 
       // Function to get kind 0 events via WebSocket
       const getProfileViaWebSocket = relayUrl => {
@@ -480,23 +498,29 @@
               ws = new WebSocket(relayUrl);
             } else if (typeof require !== 'undefined') {
               // Node.js environment
-              const WebSocketNode = require('ws');
-              ws = new WebSocketNode(relayUrl);
-              isNodeWs = true;
+              try {
+                const WebSocketNode = require('ws');
+                ws = new WebSocketNode(relayUrl);
+                isNodeWs = true;
+              } catch (wsError) {
+                log('Failed to require ws package: ' + wsError.message);
+                resolve(null);
+                return;
+              }
             } else {
-              console.log('No WebSocket implementation available');
+              log('No WebSocket implementation available');
               resolve(null);
               return;
             }
 
             let timeoutId = setTimeout(() => {
-              console.log(`WebSocket timeout for profile fetch from ${relayUrl}`);
+              log(`WebSocket timeout for profile fetch from ${relayUrl}`);
               ws.close();
               resolve(null);
             }, 5000);
 
             const handleOpen = () => {
-              console.log(`WebSocket connected to ${relayUrl} for profile fetch`);
+              log(`WebSocket connected to ${relayUrl} for profile fetch`);
               const reqId = Math.random().toString(36).substring(7);
               ws.send(JSON.stringify(['REQ', reqId, filter]));
             };
@@ -512,23 +536,23 @@
                   data[2].kind === 0 &&
                   data[2].pubkey === hexPubkey
                 ) {
-                  console.log(`Got profile from ${relayUrl}:`, data[2]);
+                  log(`Got profile from ${relayUrl}: ${JSON.stringify(data[2])}`);
                   clearTimeout(timeoutId);
                   ws.close();
                   resolve(data[2]);
                 } else if (data[0] === 'EOSE') {
-                  console.log(`End of stored profile events from ${relayUrl}`);
+                  log(`End of stored profile events from ${relayUrl}`);
                   clearTimeout(timeoutId);
                   ws.close();
                   resolve(null);
                 }
               } catch (e) {
-                console.log(`Error parsing WebSocket message for profile:`, e);
+                log(`Error parsing WebSocket message for profile: ${e}`);
               }
             };
 
-            const handleError = () => {
-              console.log(`WebSocket error for profile fetch from ${relayUrl}`);
+            const handleError = (error) => {
+              log(`WebSocket error for profile fetch from ${relayUrl}: ${error ? error.message : 'Unknown error'}`);
               clearTimeout(timeoutId);
               ws.close();
               resolve(null);
@@ -554,7 +578,7 @@
               ws.onclose = handleClose;
             }
           } catch (e) {
-            console.log(`Error creating WebSocket for profile fetch:`, e);
+            log(`Error creating WebSocket for profile fetch: ${e}`);
             resolve(null);
           }
         });
@@ -572,18 +596,18 @@
       if (profileEvent && profileEvent.content) {
         try {
           const profileData = JSON.parse(profileEvent.content);
-          console.log('Found profile data:', profileData);
+          log('Found profile data: ' + JSON.stringify(profileData));
           return profileData;
         } catch (e) {
-          console.log('Error parsing profile JSON:', e);
+          log('Error parsing profile JSON: ' + e);
         }
       }
 
       // If we get here, no profile was found or it couldn't be parsed
-      console.log('No valid profile found');
+      log('No valid profile found');
       return null;
     } catch (e) {
-      console.error('Error in fetchProfileForPubkey:', e);
+      if (verbose) console.error('Error in fetchProfileForPubkey:', e);
       return null;
     }
   }
@@ -591,9 +615,19 @@
   /**
    * Extract website from profile data
    * @param {object} profileData - Profile data
+   * @param {object} [options] - Additional options
+   * @param {boolean} [options.verbose] - Whether to log verbose output
    * @returns {string|null} - Website URL or null if not found
    */
-  function getWebsiteFromProfile (profileData) {
+  function getWebsiteFromProfile (profileData, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
     if (!profileData) return null;
 
     // Check for website field
@@ -612,7 +646,7 @@
         website = 'https://' + website;
       }
 
-      console.log('Found website in profile:', website);
+      log('Found website in profile: ' + website);
       return website;
     }
 
@@ -622,9 +656,19 @@
   /**
    * Extract storage endpoints from profile data
    * @param {object} profileData - Profile data
+   * @param {object} [options] - Additional options
+   * @param {boolean} [options.verbose] - Whether to log verbose output
    * @returns {string[]|null} - Array of storage endpoints or null if not found
    */
-  function getStorageFromProfile (profileData) {
+  function getStorageFromProfile (profileData, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
     if (!profileData) return null;
 
     // Check for storage field
@@ -644,7 +688,7 @@
           storage = 'https://' + storage;
         }
 
-        console.log('Found storage endpoint in profile:', storage);
+        log('Found storage endpoint in profile: ' + storage);
         return [storage]; // Return as array for consistency
       } else if (Array.isArray(profileData.storage)) {
         // Handle array of storage endpoints
@@ -663,7 +707,7 @@
           });
 
         if (storageEndpoints.length > 0) {
-          console.log('Found storage endpoints in profile:', storageEndpoints);
+          log('Found storage endpoints in profile: ' + JSON.stringify(storageEndpoints));
           return storageEndpoints;
         }
       }

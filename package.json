@@ -1,6 +1,6 @@
 {
   "name": "did-nostr-resolver",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "DID method implementation for Nostr public keys",
   "main": "index.js",
   "bin": {

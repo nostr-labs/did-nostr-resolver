@@ -94,44 +94,84 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
    cd did-nostr-resolver
    npm install
    chmod +x bin/cli.js
+   npm link  # Optional, to use the CLI globally
    ```
 
 2. **Create a DID**:
 
    ```bash
-   # Basic usage (only includes relays if found in kind 10002 events)
-   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
+   # Basic usage (quiet mode - only outputs the DID document JSON)
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
+
+   # Verbose mode (shows detailed output about the process)
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v
 
    # With specific relays (disables automatic relay fetching)
-   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --relays=wss://relay.damus.io,wss://nos.lol
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --relays=wss://relay.damus.io,wss://nos.lol
 
    # Force using default relays without fetching from network
-   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
 
-   # Include website and storage from Nostr profile
-   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
+   # Include website and storage endpoints from Nostr profile
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
 
    # Save output to file
-   bin/cli.js create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --output=mydid.json
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --output=mydid.json
    ```
 
 3. **Resolve a DID**:
 
    ```bash
-   # Basic usage (only includes relays if found in kind 10002 events)
-   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
+   # Basic usage (quiet mode - only outputs the DID document JSON)
+   did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245
 
-   # Include website and storage from Nostr profile
-   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
+   # Verbose mode
+   did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v
+
+   # Include website and storage endpoints from Nostr profile
+   did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
 
    # Disable automatic relay fetching (use default relays)
-   bin/cli.js resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
+   did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
    ```
 
 4. **Get help**:
 
    ```bash
-   bin/cli.js help
+   did-nostr-resolver help
+   ```
+
+5. **Example DID Document with Storage**:
+
+   ```json
+   {
+     "@context": [
+       "https://www.w3.org/ns/did/v1",
+       "https://w3id.org/nostr/context"
+     ],
+     "id": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065",
+     "verificationMethod": [
+       {
+         "id": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065#key1",
+         "controller": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065",
+         "type": "SchnorrVerification2023"
+       }
+     ],
+     "authentication": ["#key1"],
+     "assertionMethod": ["#key1"],
+     "service": [
+       {
+         "id": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065#relay1",
+         "type": "Relay",
+         "serviceEndpoint": "wss://relay.damus.io"
+       },
+       {
+         "id": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065#storage1",
+         "type": "Storage",
+         "serviceEndpoint": "https://nosdav.net/f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065/"
+       }
+     ]
+   }
    ```
 
 ## 🧩 How It Works
