@@ -1102,6 +1102,16 @@
       const animationDelay = ms =>
         new Promise(resolve => setTimeout(resolve, ms))
 
+      // Helper to get URL parameters
+      const getUrlParameter = name => {
+        const urlParams = new URLSearchParams(window.location.search)
+        return urlParams.get(name)
+      }
+
+      // Get pubkey from URL if available
+      const urlPubkey = getUrlParameter('pubkey')
+      console.log('Pubkey from URL:', urlPubkey)
+
       // Relay Input Component
       const RelayInput = ({ value, onRemove, onChange }) => {
         const [isVisible, setIsVisible] = useState(true)
@@ -1324,7 +1334,8 @@
       // Create DID Tab Component
       const CreateDIDTab = () => {
         const [pubkey, setPubkey] = useState(
-          '32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
+          urlPubkey ||
+            '32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
         )
         const [relays, setRelays] = useState([
           'wss://relay.damus.io',
@@ -1449,9 +1460,11 @@
 
       // Resolve DID Tab Component
       const ResolveDIDTab = () => {
-        const [did, setDid] = useState(
-          'did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
-        )
+        const defaultDid = urlPubkey
+          ? `did:nostr:${urlPubkey}`
+          : 'did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245'
+
+        const [did, setDid] = useState(defaultDid)
         const [relays, setRelays] = useState([
           'wss://relay.damus.io',
           'wss://nos.lol'
