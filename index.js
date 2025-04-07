@@ -215,7 +215,7 @@
         {
           id: `${did}#key1`,
           controller: did,
-          type: 'SchnorrVerification2023'
+          type: 'SchnorrVerification2025'
         }
       ],
       authentication: ['#key1'],

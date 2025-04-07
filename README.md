@@ -37,7 +37,7 @@ did:nostr:<64-character-lowercase-public-key>
     {
       "id": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2#key1",
       "controller": "did:nostr:124c0fa99407182ece5a24fad9b7f6674902fc422843d3128d38a0afbee0fdd2",
-      "type": "SchnorrVerification2023"
+      "type": "SchnorrVerification2025"
     }
   ],
   "authentication": ["#key1"],
@@ -154,7 +154,7 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
        {
          "id": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065#key1",
          "controller": "did:nostr:f0af407bd5a2e44c22021f9d89c8a8c7239cc723e3f3bd46d749e6f92d860065",
-         "type": "SchnorrVerification2023"
+         "type": "SchnorrVerification2025"
        }
      ],
      "authentication": ["#key1"],
