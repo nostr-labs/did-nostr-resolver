@@ -10,6 +10,7 @@ A powerful web-based tool to create and resolve Decentralized Identifiers (DIDs)
 - **Create DIDs** from Nostr public keys with simple, user-friendly interface
 - **Resolve DID Documents** from existing Nostr DIDs
 - **Fetch Relays** automatically from Nostr metadata (kind 10002 events)
+- **HTTP Resolution** via `.well-known/did/nostr/<pubkey>.json` on domains
 - **Support for npub format** for easy integration with Nostr ecosystem
 - **Include profile information** like website and storage from Nostr profiles
 - **Elegant UI/UX** with responsive design and animations
@@ -64,6 +65,7 @@ did:nostr:<64-character-lowercase-public-key>
 - **Simple Creation** - Generate a key pair and encode the public key as a 64-character string
 - **Deterministic Resolution** - DID documents can be deterministically generated from the public key
 - **Profile Integration** - Include website and storage information from Nostr profiles
+- **HTTP Discovery** - Allow domains to provide profile information via `.well-known/did/nostr/<pubkey>.json`
 
 ## 🛠️ Installation and Usage
 
@@ -115,6 +117,12 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
    # Include website and storage endpoints from Nostr profile
    did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile
 
+   # Use HTTP resolution with specific domains
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --domains=example.com,nostr.com
+
+   # Enable HTTP resolution with auto-detected domains
+   did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --use-http
+
    # Save output to file
    did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --output=mydid.json
    ```
@@ -133,6 +141,9 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
 
    # Disable automatic relay fetching (use default relays)
    did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays
+
+   # Use HTTP resolution with specific domains
+   did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --domains=example.com,nostr.com
    ```
 
 4. **Get help**:
@@ -189,8 +200,17 @@ The DID-Nostr Resolver also includes a command-line interface (CLI) for creating
    - View the resolved DID document with verification methods and service endpoints
 
 3. **Fetching Profile Information**:
+
    - For existing Nostr users, automatically fetch their profile information
+   - First check for profile at `.well-known/did/nostr/<pubkey>.json` via HTTP
+   - Fall back to querying Nostr relays if HTTP resolution fails
    - Extract website URLs and storage endpoints to include in the DID document
+
+4. **HTTP Resolution**:
+   - Domains can serve profile information at `.well-known/did/nostr/<pubkey>.json`
+   - HTTP resolution is attempted first before querying Nostr relays
+   - Specify domains explicitly or let the resolver auto-detect them from relays or website
+   - Enable fast, direct profile retrieval without WebSocket connections
 
 ## 🔐 Security and Privacy
 

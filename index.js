@@ -271,9 +271,19 @@
    * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
    * @param {string} [options.website] - Website URL to include in the service section
    * @param {string[]} [options.storage] - Storage endpoints to include in the service section
+   * @param {string[]} [options.domains] - Domains to check for .well-known HTTP resolution
+   * @param {boolean} [options.verbose] - Whether to log verbose output
    * @returns {Promise<object|null>} - The resolved DID Document or null if invalid
    */
   async function resolveDidNostr (did, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
     if (!did || typeof did !== 'string') {
       console.error('Invalid DID provided');
       return null;
@@ -287,6 +297,52 @@
     }
 
     const pubkey = didMatch[1];
+
+    // If no specific options provided that would enhance the DID document,
+    // try to fetch additional information
+    if (!options.relays || !options.website || !options.storage) {
+      log('Fetching additional information for DID document');
+
+      try {
+        // Attempt to fetch profile data
+        const profileData = await fetchProfileForPubkey(pubkey, options);
+
+        if (profileData) {
+          log('Successfully fetched profile data');
+
+          // Extract website from profile if not already provided
+          if (!options.website) {
+            const website = getWebsiteFromProfile(profileData, { verbose });
+            if (website) {
+              options.website = website;
+              log(`Added website to options: ${website}`);
+            }
+          }
+
+          // Extract storage endpoints from profile if not already provided
+          if (!options.storage) {
+            const storage = getStorageFromProfile(profileData, { verbose });
+            if (storage) {
+              options.storage = storage;
+              log(`Added storage endpoints to options: ${JSON.stringify(storage)}`);
+            }
+          }
+        }
+
+        // Try to fetch relay list if not already provided
+        if (!options.relays) {
+          const relays = await fetchRelaysForPubkey(pubkey, { verbose });
+          if (relays && relays.length > 0) {
+            options.relays = relays;
+            log(`Added relays to options: ${JSON.stringify(relays)}`);
+          }
+        }
+      } catch (e) {
+        log(`Error fetching additional information: ${e.message}`);
+        // Continue with DID document creation even if fetching fails
+      }
+    }
+
     return createDidNostrDocument(pubkey, options);
   }
 
@@ -492,10 +548,126 @@
   }
 
   /**
+   * Fetch profile information for a Nostr public key over HTTP
+   * @param {string} pubkey - The Nostr public key (hex)
+   * @param {object} [options] - Additional options
+   * @param {boolean} [options.verbose] - Whether to log verbose output
+   * @param {string[]} [options.domains] - Specific domains to try for .well-known lookup
+   * @param {string} [options.website] - Website URL to extract domain from
+   * @param {string[]} [options.relays] - Relay URLs to extract domains from
+   * @returns {Promise<object|null>} - Profile data or null if not found
+   */
+  async function fetchProfileOverHTTP (pubkey, options = {}) {
+    const verbose = options.verbose || false;
+
+    const log = (message) => {
+      if (verbose) {
+        console.log(message);
+      }
+    };
+
+    // If specific domains are provided, use those
+    let domains = [];
+    if (options.domains && Array.isArray(options.domains) && options.domains.length > 0) {
+      domains = [...options.domains];
+    } else {
+      // Try to extract domains from other options if available
+
+      // Try to extract domain from current URL in browser environment
+      if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+        domains.push(window.location.hostname);
+      }
+
+      // Try to extract domain from website field
+      if (options.website && typeof options.website === 'string') {
+        try {
+          const websiteUrl = new URL(options.website);
+          if (!domains.includes(websiteUrl.hostname)) {
+            domains.push(websiteUrl.hostname);
+          }
+        } catch (e) {
+          log(`Error extracting domain from website: ${e.message}`);
+        }
+      }
+
+      // Try to extract domains from relay URLs
+      if (options.relays && Array.isArray(options.relays)) {
+        options.relays.forEach(relay => {
+          try {
+            if (typeof relay === 'string' && (relay.startsWith('wss://') || relay.startsWith('ws://'))) {
+              // Extract hostname from the relay URL
+              const relayUrl = new URL(relay);
+              if (!domains.includes(relayUrl.hostname)) {
+                domains.push(relayUrl.hostname);
+              }
+            }
+          } catch (e) {
+            log(`Error extracting domain from relay URL: ${e.message}`);
+          }
+        });
+      }
+    }
+
+    // If we couldn't determine any domains, return null
+    if (domains.length === 0) {
+      log('No domains available to try for HTTP profile fetch');
+      return null;
+    }
+
+    log(`Attempting HTTP fetch from domains: ${JSON.stringify(domains)}`);
+
+    // Try each domain
+    for (const domain of domains) {
+      const protocol = domain.startsWith('localhost') ? 'http' : 'https';
+      const url = `${protocol}://${domain}/.well-known/did/nostr/${pubkey}.json`;
+
+      log(`Attempting to fetch profile from: ${url}`);
+
+      try {
+        // Use fetch in browser, or node-fetch in Node.js if available
+        let response;
+        if (typeof fetch !== 'undefined') {
+          // Browser or modern Node.js with native fetch
+          response = await fetch(url);
+        } else if (typeof require !== 'undefined') {
+          // Older Node.js without native fetch
+          try {
+            const nodeFetch = require('node-fetch');
+            response = await nodeFetch(url);
+          } catch (e) {
+            log(`node-fetch not available: ${e.message}`);
+            continue; // Try next domain
+          }
+        } else {
+          log('No fetch implementation available');
+          continue; // Try next domain
+        }
+
+        if (!response.ok) {
+          log(`HTTP error fetching profile: ${response.status} ${response.statusText}`);
+          continue; // Try next domain
+        }
+
+        const profileData = await response.json();
+        log(`Successfully fetched profile from ${url}: ${JSON.stringify(profileData)}`);
+        return profileData;
+      } catch (e) {
+        log(`Error fetching profile from ${url}: ${e.message}`);
+        // Continue to next domain
+      }
+    }
+
+    // If we get here, no profile was found via HTTP
+    log('No profile found via HTTP');
+    return null;
+  }
+
+  /**
    * Fetch profile information for a Nostr public key
    * @param {string} pubkey - The Nostr public key (hex or npub)
    * @param {object} [options] - Additional options
    * @param {boolean} [options.verbose] - Whether to log verbose output
+   * @param {string[]} [options.domains] - Specific domains to try for .well-known lookup
    * @returns {Promise<object|null>} - Profile data or null if not found
    */
   async function fetchProfileForPubkey (pubkey, options = {}) {
@@ -513,6 +685,18 @@
 
     const hexPubkey = normalizePublicKey(pubkey);
     log('Fetching profile for pubkey: ' + hexPubkey);
+
+    // First, try to fetch profile over HTTP from .well-known endpoint
+    log('First attempting HTTP fetch from .well-known endpoint...');
+    const httpProfileData = await fetchProfileOverHTTP(hexPubkey, options);
+
+    // If we got a result via HTTP, return it immediately
+    if (httpProfileData) {
+      log('Successfully retrieved profile data via HTTP');
+      return httpProfileData;
+    }
+
+    log('HTTP fetch failed or no profile found, falling back to WebSocket approach...');
 
     // Create a filter for kind 0 (profile metadata) events
     const filter = {
@@ -788,6 +972,7 @@
     resolveDidNostr,
     fetchRelaysForPubkey,
     fetchProfileForPubkey,
+    fetchProfileOverHTTP,
     getWebsiteFromProfile,
     getStorageFromProfile,
     getUrlParameter

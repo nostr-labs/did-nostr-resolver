@@ -47,13 +47,15 @@ function showHelp () {
   console.log(`  ${colors.green}resolve${colors.reset} - Resolve a DID to a DID document`);
   console.log('');
   console.log(`${colors.bright}Options:${colors.reset}`);
-  console.log('  --relays=<urls>    - Comma-separated list of relay URLs to include in the service section');
-  console.log('  --output=<path>    - Save the output to a file instead of stdout');
-  console.log('  --include-profile  - Fetch and include profile information (website and storage)');
-  console.log('  --no-profile       - Skip fetching profile information');
-  console.log('  --fetch-relays     - Fetch relay list from Nostr network (kind 10002 events)');
-  console.log('  --no-fetch-relays  - Skip fetching relay list from Nostr network');
-  console.log('  -v, --verbose      - Enable verbose output (quiet mode is default)');
+  console.log('  --relays=<urls>     - Comma-separated list of relay URLs to include in the service section');
+  console.log('  --domains=<domains> - Comma-separated list of domains to try for HTTP resolution');
+  console.log('  --use-http          - Enable HTTP resolution via .well-known/did/nostr/<pubkey>.json');
+  console.log('  --output=<path>     - Save the output to a file instead of stdout');
+  console.log('  --include-profile   - Fetch and include profile information (website and storage)');
+  console.log('  --no-profile        - Skip fetching profile information');
+  console.log('  --fetch-relays      - Fetch relay list from Nostr network (kind 10002 events)');
+  console.log('  --no-fetch-relays   - Skip fetching relay list from Nostr network');
+  console.log('  -v, --verbose       - Enable verbose output (quiet mode is default)');
   console.log('');
   console.log(`${colors.bright}Default Behavior:${colors.reset}`);
   console.log('  By default, the CLI runs in quiet mode, outputting only the DID document JSON.');
@@ -62,12 +64,14 @@ function showHelp () {
   console.log('  If no relays are found, the DID document will not include any relay endpoints.');
   console.log('  Use --no-fetch-relays to include the default relays instead.');
   console.log('  Specify your own relays with --relays=... to override this behavior.');
+  console.log('  HTTP resolution is used by default when --domains are specified or --use-http is set.');
   console.log('');
   console.log(`${colors.bright}Examples:${colors.reset}`);
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays');
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --domains=example.com,test.org');
   console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
   console.log('');
 }
@@ -85,6 +89,8 @@ function parseOptions (args) {
 
   const options = {
     relays: [...defaultRelays], // Initialize with the default relays
+    domains: [],                // No default domains for HTTP
+    useHttp: false,             // Default to not using HTTP
     output: null,
     includeProfile: true,       // Default to including profile information
     fetchRelays: true,          // Default to fetching relays from kind 10002 events
@@ -98,6 +104,13 @@ function parseOptions (args) {
       options.relays = relayStr.split(',').map(r => r.trim()).filter(r => r.length > 0);
       // When user explicitly specifies relays, don't fetch from network unless explicitly enabled
       options.fetchRelays = false;
+    } else if (args[i].startsWith('--domains=')) {
+      const domainsStr = args[i].substring('--domains='.length);
+      options.domains = domainsStr.split(',').map(d => d.trim()).filter(d => d.length > 0);
+      // If domains are specified, enable HTTP resolution
+      options.useHttp = true;
+    } else if (args[i] === '--use-http') {
+      options.useHttp = true;
     } else if (args[i] === '--default-relays') {
       // Keep the default relays (already set)
       options.fetchRelays = false;
@@ -167,6 +180,11 @@ async function createDID (pubkey, options) {
 
     log(options, `${colors.yellow}Creating DID document for public key: ${colors.bright}${pubkey}${colors.reset}`);
 
+    // Log HTTP resolution status
+    if (options.useHttp) {
+      log(options, `${colors.green}HTTP resolution enabled: Will check .well-known/did/nostr/${pubkey}.json${colors.reset}`);
+    }
+
     // Initialize relays - only use them if explicitly specified via --relays or found in kind 10002 events
     let relays = options.fetchRelays ? [] : [...options.relays];
 
@@ -198,8 +216,22 @@ async function createDID (pubkey, options) {
     let storage = null;
     if (options.includeProfile) {
       log(options, `${colors.yellow}Fetching profile information...${colors.reset}`);
+
+      // Log HTTP resolution status if enabled
+      if (options.useHttp) {
+        if (options.domains.length > 0) {
+          log(options, `${colors.yellow}Attempting HTTP resolution from domains: ${colors.reset}${options.domains.join(', ')}`);
+        } else {
+          log(options, `${colors.yellow}Attempting HTTP resolution from auto-detected domains${colors.reset}`);
+        }
+      }
+
       try {
-        const profileData = await resolver.fetchProfileForPubkey(pubkey, { verbose: options.verbose });
+        const profileData = await resolver.fetchProfileForPubkey(pubkey, {
+          verbose: options.verbose,
+          domains: options.domains
+        });
+
         if (profileData) {
           website = resolver.getWebsiteFromProfile(profileData, { verbose: options.verbose });
           storage = resolver.getStorageFromProfile(profileData, { verbose: options.verbose });
@@ -223,7 +255,9 @@ async function createDID (pubkey, options) {
     const didDocument = await resolver.createDidNostrDocument(pubkey, {
       relays: relays,
       website: website,
-      storage: storage
+      storage: storage,
+      domains: options.domains,
+      verbose: options.verbose
     });
 
     if (!didDocument) {
@@ -272,6 +306,11 @@ async function resolveDID (did, options) {
 
     const pubkey = didMatch[1];
 
+    // Log HTTP resolution status
+    if (options.useHttp) {
+      log(options, `${colors.green}HTTP resolution enabled: Will check .well-known/did/nostr/${pubkey}.json${colors.reset}`);
+    }
+
     // Initialize relays - only use them if explicitly specified via --relays or found in kind 10002 events
     let relays = options.fetchRelays ? [] : [...options.relays];
 
@@ -303,8 +342,22 @@ async function resolveDID (did, options) {
     let storage = null;
     if (options.includeProfile) {
       log(options, `${colors.yellow}Fetching profile information...${colors.reset}`);
+
+      // Log HTTP resolution status if enabled
+      if (options.useHttp) {
+        if (options.domains.length > 0) {
+          log(options, `${colors.yellow}Attempting HTTP resolution from domains: ${colors.reset}${options.domains.join(', ')}`);
+        } else {
+          log(options, `${colors.yellow}Attempting HTTP resolution from auto-detected domains${colors.reset}`);
+        }
+      }
+
       try {
-        const profileData = await resolver.fetchProfileForPubkey(pubkey, { verbose: options.verbose });
+        const profileData = await resolver.fetchProfileForPubkey(pubkey, {
+          verbose: options.verbose,
+          domains: options.domains
+        });
+
         if (profileData) {
           website = resolver.getWebsiteFromProfile(profileData, { verbose: options.verbose });
           storage = resolver.getStorageFromProfile(profileData, { verbose: options.verbose });
@@ -328,7 +381,9 @@ async function resolveDID (did, options) {
     const didDocument = await resolver.resolveDidNostr(did, {
       relays: relays,
       website: website,
-      storage: storage
+      storage: storage,
+      domains: options.domains,
+      verbose: options.verbose
     });
 
     if (!didDocument) {

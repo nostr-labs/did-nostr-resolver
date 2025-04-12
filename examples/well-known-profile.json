@@ -1,0 +1,20 @@
+{
+  "name": "Alice",
+  "display_name": "Alice Nakamoto",
+  "about": "Decentralized identity explorer. Building the #DIDs future with #Nostr.",
+  "picture": "https://example.com/profiles/alice.jpg",
+  "banner": "https://example.com/profiles/alice-banner.jpg",
+  "website": "https://alice.example.com",
+  "nip05": "alice@example.com",
+  "lud16": "alice@example.com",
+  "storage": [
+    "https://nosdav.example.com/alice/",
+    "https://nip96.example.com/alice"
+  ],
+  "nip05_domain": "example.com",
+  "relays": [
+    "wss://relay.example.com",
+    "wss://nos.lol",
+    "wss://relay.nostr.band"
+  ]
+}
