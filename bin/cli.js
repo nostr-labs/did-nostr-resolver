@@ -47,7 +47,8 @@ function showHelp () {
   console.log(`  ${colors.green}resolve${colors.reset} - Resolve a DID to a DID document`);
   console.log('');
   console.log(`${colors.bright}Options:${colors.reset}`);
-  console.log(`  ${colors.green}--minimal${colors.reset}           - 🚀 NEW: Offline-first resolution (instant, no network required)`);
+  console.log(`  ${colors.green}--enhanced${colors.reset}          - Enable network queries for service endpoints (relay discovery, profiles)`);
+  console.log(`  ${colors.green}--minimal${colors.reset}           - Explicitly use offline-first resolution (default behavior)`);
   console.log('  --relays=<urls>     - Comma-separated list of relay URLs to include in the service section');
   console.log('  --domains=<domains> - Comma-separated list of domains to try for HTTP resolution');
   console.log('  --use-http          - Enable HTTP resolution via .well-known/did/nostr/<pubkey>.json');
@@ -58,26 +59,24 @@ function showHelp () {
   console.log('  --no-fetch-relays   - Skip fetching relay list from Nostr network');
   console.log('  -v, --verbose       - Enable verbose output (quiet mode is default)');
   console.log('');
-  console.log(`${colors.bright}Default Behavior:${colors.reset}`);
-  console.log('  By default, the CLI runs in quiet mode, outputting only the DID document JSON.');
-  console.log('  The CLI will attempt to fetch relays from the Nostr network (kind 10002 events).');
-  console.log('  Relays will ONLY be included in the DID document if found in kind 10002 events.');
-  console.log('  If no relays are found, the DID document will not include any relay endpoints.');
-  console.log('  Use --no-fetch-relays to include the default relays instead.');
-  console.log('  Specify your own relays with --relays=... to override this behavior.');
-  console.log('  HTTP resolution is used by default when --domains are specified or --use-http is set.');
+  console.log(`${colors.bright}Default Behavior (NEW):${colors.reset}`);
+  console.log(`  ${colors.green}🚀 Offline-first by default${colors.reset} - instant, reliable results without network dependencies.`);
+  console.log('  The CLI generates spec-compliant DID documents from public keys alone.');
+  console.log('  No relay queries or profile fetching unless --enhanced is specified.');
+  console.log('  Use --enhanced to enable network queries for service endpoints and metadata.');
   console.log('');
   console.log(`${colors.bright}Examples:${colors.reset}`);
-  console.log(`  ${colors.green}# Offline-first resolution (RECOMMENDED - instant, works offline)${colors.reset}`);
-  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --minimal');
-  console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --minimal');
-  console.log('');
-  console.log(`  ${colors.green}# Enhanced resolution with optional network queries${colors.reset}`);
+  console.log(`  ${colors.green}# Default: Offline-first resolution (instant, reliable)${colors.reset}`);
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
-  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v');
-  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile');
-  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays');
   console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
+  console.log('');
+  console.log(`  ${colors.green}# Enhanced resolution with network queries (opt-in)${colors.reset}`);
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --enhanced');
+  console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --enhanced -v');
+  console.log('');
+  console.log(`  ${colors.green}# Advanced options (with enhanced mode)${colors.reset}`);
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --enhanced --include-profile');
+  console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --enhanced --domains=example.com');
   console.log('');
 }
 
@@ -97,10 +96,11 @@ function parseOptions (args) {
     domains: [],                // No default domains for HTTP
     useHttp: false,             // Default to not using HTTP
     output: null,
-    includeProfile: true,       // Default to including profile information
-    fetchRelays: true,          // Default to fetching relays from kind 10002 events
+    includeProfile: false,      // Default to minimal mode (no profile fetching)
+    fetchRelays: false,         // Default to minimal mode (no relay fetching)
     verbose: false,             // Default to quiet mode
-    minimal: false              // Default to enhanced resolution
+    minimal: true,              // Default to minimal (offline-first) resolution
+    enhanced: false             // Opt-in to enhanced resolution
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -134,9 +134,16 @@ function parseOptions (args) {
       options.verbose = true;
     } else if (args[i] === '--minimal') {
       options.minimal = true;
-      // When using minimal mode, skip profile fetching and relay fetching
+      options.enhanced = false;
+      // Explicitly minimal mode: skip profile fetching and relay fetching
       options.includeProfile = false;
       options.fetchRelays = false;
+    } else if (args[i] === '--enhanced') {
+      options.enhanced = true;
+      options.minimal = false;
+      // Enable enhanced mode: allow profile fetching and relay fetching
+      options.includeProfile = true;
+      options.fetchRelays = true;
     }
   }
 
@@ -191,9 +198,9 @@ async function createDID (pubkey, options) {
 
     log(options, `${colors.yellow}Creating DID document for public key: ${colors.bright}${pubkey}${colors.reset}`);
 
-    // If minimal mode is requested, use offline-first resolution
-    if (options.minimal) {
-      log(options, `${colors.green}🚀 Using minimal mode: Offline-first resolution (instant, no network)${colors.reset}`);
+    // Default behavior is now minimal mode (offline-first)
+    if (!options.enhanced) {
+      log(options, `${colors.green}🚀 Using offline-first resolution (default): Instant, no network required${colors.reset}`);
       
       const didDocument = resolver.createDidNostrDocumentMinimal(pubkey);
       
@@ -208,19 +215,19 @@ async function createDID (pubkey, options) {
       if (options.output) {
         try {
           fs.writeFileSync(options.output, output);
-          log(options, `${colors.green}Minimal DID document saved to ${options.output}${colors.reset}`);
+          log(options, `${colors.green}DID document saved to ${options.output}${colors.reset}`);
         } catch (error) {
           console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
           return 1;
         }
       } else {
-        log(options, `${colors.bright}Minimal DID Document (Offline-First):${colors.reset}`);
+        log(options, `${colors.bright}DID Document (Offline-First):${colors.reset}`);
         console.log(output);
       }
       return 0;
     }
 
-    // Enhanced mode continues below...
+    // Enhanced mode (opt-in)
     log(options, `${colors.yellow}Using enhanced mode: Network queries for service endpoints${colors.reset}`);
 
     // Log HTTP resolution status
@@ -294,8 +301,9 @@ async function createDID (pubkey, options) {
       }
     }
 
-    // Create DID document
+    // Create DID document in enhanced mode
     const didDocument = await resolver.createDidNostrDocument(pubkey, {
+      enhanced: true,
       relays: relays,
       website: website,
       storage: storage,
@@ -340,14 +348,14 @@ async function resolveDID (did, options) {
 
     log(options, `${colors.yellow}Resolving DID: ${colors.bright}${did}${colors.reset}`);
 
-    // If minimal mode is requested, use offline-first resolution
-    if (options.minimal) {
-      log(options, `${colors.green}🚀 Using minimal mode: Offline-first resolution (instant, no network)${colors.reset}`);
+    // Default behavior is now minimal mode (offline-first)
+    if (!options.enhanced) {
+      log(options, `${colors.green}🚀 Using offline-first resolution (default): Instant, no network required${colors.reset}`);
       
       const didDocument = resolver.resolveDidNostrMinimal(did);
       
       if (!didDocument) {
-        console.error(`${colors.red}Error: Failed to resolve DID in minimal mode${colors.reset}`);
+        console.error(`${colors.red}Error: Failed to resolve DID${colors.reset}`);
         return 1;
       }
 
@@ -357,19 +365,19 @@ async function resolveDID (did, options) {
       if (options.output) {
         try {
           fs.writeFileSync(options.output, output);
-          log(options, `${colors.green}Minimal DID document saved to ${options.output}${colors.reset}`);
+          log(options, `${colors.green}DID document saved to ${options.output}${colors.reset}`);
         } catch (error) {
           console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
           return 1;
         }
       } else {
-        log(options, `${colors.bright}Minimal DID Document (Offline-First):${colors.reset}`);
+        log(options, `${colors.bright}DID Document (Offline-First):${colors.reset}`);
         console.log(output);
       }
       return 0;
     }
 
-    // Enhanced mode continues below...
+    // Enhanced mode (opt-in)
     log(options, `${colors.yellow}Using enhanced mode: Network queries for service endpoints${colors.reset}`);
 
     // Extract pubkey from DID
@@ -452,8 +460,9 @@ async function resolveDID (did, options) {
       }
     }
 
-    // Resolve DID document
+    // Resolve DID document in enhanced mode
     const didDocument = await resolver.resolveDidNostr(did, {
+      enhanced: true,
       relays: relays,
       website: website,
       storage: storage,
