@@ -1,6 +1,6 @@
 {
   "name": "did-nostr-resolver",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Offline-first DID resolver for Nostr with W3C Multikey support",
   "main": "index.js",
   "bin": {

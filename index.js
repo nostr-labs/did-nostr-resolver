@@ -240,22 +240,22 @@
   }
 
   /**
-   * Creates a complete DID Document for a Nostr public key (with optional enhancements)
+   * Creates a DID Document for a Nostr public key (defaults to offline-first minimal mode)
    * @param {string} pubkey - The Nostr public key (64-character hex or npub)
    * @param {object} [options] - Additional options
    * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
    * @param {string} [options.website] - Website URL to include in the service section
    * @param {string[]} [options.storage] - Storage endpoints to include in the service section
-   * @param {boolean} [options.minimal] - Return minimal document without enhancements
+   * @param {boolean} [options.enhanced] - Enable network queries for service endpoints (default: false)
    * @returns {Promise<object|null>} - The DID Document or null if invalid
    */
   async function createDidNostrDocument (pubkey, options = {}) {
-    // If minimal mode is requested, return minimal document immediately
-    if (options.minimal) {
+    // Default to minimal mode for better UX and reliability
+    if (!options.enhanced) {
       return createDidNostrDocumentMinimal(pubkey);
     }
 
-    // Start with minimal document as base
+    // Enhanced mode: Start with minimal document as base and add services
     const didDocument = createDidNostrDocumentMinimal(pubkey);
     if (!didDocument) {
       return null;
@@ -327,7 +327,7 @@
   }
 
   /**
-   * Resolves a DID-Nostr identifier to its enhanced DID Document (with optional network queries)
+   * Resolves a DID-Nostr identifier to its DID Document (defaults to offline-first minimal mode)
    * @param {string} did - The DID-Nostr identifier
    * @param {object} [options] - Additional options
    * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
@@ -335,7 +335,7 @@
    * @param {string[]} [options.storage] - Storage endpoints to include in the service section
    * @param {string[]} [options.domains] - Domains to check for .well-known HTTP resolution
    * @param {boolean} [options.verbose] - Whether to log verbose output
-   * @param {boolean} [options.minimal] - Return minimal document without enhancements
+   * @param {boolean} [options.enhanced] - Enable network queries for service endpoints (default: false)
    * @returns {Promise<object|null>} - The resolved DID Document or null if invalid
    */
   async function resolveDidNostr (did, options = {}) {
@@ -347,8 +347,8 @@
       }
     };
 
-    // If minimal mode is requested, return minimal document immediately
-    if (options.minimal) {
+    // Default to minimal mode for better UX and reliability
+    if (!options.enhanced) {
       return resolveDidNostrMinimal(did);
     }
 
