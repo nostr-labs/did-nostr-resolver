@@ -179,15 +179,28 @@
   }
 
   /**
-   * Creates a complete DID Document for a Nostr public key
-   * @param {string} pubkey - The Nostr public key (64-character hex or npub)
-   * @param {object} [options] - Additional options
-   * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
-   * @param {string} [options.website] - Website URL to include in the service section
-   * @param {string[]} [options.storage] - Storage endpoints to include in the service section
-   * @returns {Promise<object|null>} - The DID Document or null if invalid
+   * Transforms a Nostr x-only public key to Multikey format
+   * @param {string} pubkey - The 64-character hex public key
+   * @returns {string} - The multibase-encoded Multikey
    */
-  async function createDidNostrDocument (pubkey, options = {}) {
+  function pubkeyToMultikey(pubkey) {
+    // 1. Add 0x02 parity byte for compressed secp256k1 (even y-coordinate)
+    const compressed = '02' + pubkey;
+    
+    // 2. Add secp256k1 multicodec varint (0xe701)
+    const withCodec = 'e701' + compressed;
+    
+    // 3. Add base16-lower multibase prefix (f)
+    return 'f' + withCodec;
+  }
+
+  /**
+   * Creates a minimal DID Document from a Nostr public key (offline-first)
+   * This function works entirely offline and generates a spec-compliant DID document
+   * @param {string} pubkey - The Nostr public key (64-character hex or npub)
+   * @returns {object|null} - The minimal DID Document or null if invalid
+   */
+  function createDidNostrDocumentMinimal(pubkey) {
     // Support for npub format
     if (pubkey.startsWith('npub1')) {
       try {
@@ -204,23 +217,49 @@
     }
 
     const did = createDidNostr(pubkey);
+    const publicKeyMultibase = pubkeyToMultikey(pubkey);
 
-    const didDocument = {
+    // Create minimal spec-compliant DID document
+    return {
       '@context': [
-        'https://www.w3.org/ns/did/v1',
+        'https://w3id.org/did',
         'https://w3id.org/nostr/context'
       ],
       id: did,
       verificationMethod: [
         {
           id: `${did}#key1`,
+          type: 'Multikey',
           controller: did,
-          type: 'SchnorrVerification2025'
+          publicKeyMultibase: publicKeyMultibase
         }
       ],
       authentication: ['#key1'],
       assertionMethod: ['#key1']
     };
+  }
+
+  /**
+   * Creates a complete DID Document for a Nostr public key (with optional enhancements)
+   * @param {string} pubkey - The Nostr public key (64-character hex or npub)
+   * @param {object} [options] - Additional options
+   * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
+   * @param {string} [options.website] - Website URL to include in the service section
+   * @param {string[]} [options.storage] - Storage endpoints to include in the service section
+   * @param {boolean} [options.minimal] - Return minimal document without enhancements
+   * @returns {Promise<object|null>} - The DID Document or null if invalid
+   */
+  async function createDidNostrDocument (pubkey, options = {}) {
+    // If minimal mode is requested, return minimal document immediately
+    if (options.minimal) {
+      return createDidNostrDocumentMinimal(pubkey);
+    }
+
+    // Start with minimal document as base
+    const didDocument = createDidNostrDocumentMinimal(pubkey);
+    if (!didDocument) {
+      return null;
+    }
 
     // Add services if provided
     const services = [];
@@ -265,7 +304,30 @@
   }
 
   /**
-   * Resolves a DID-Nostr identifier to its DID Document
+   * Resolves a DID-Nostr identifier to its minimal DID Document (offline-first)
+   * This function works entirely offline and generates a spec-compliant DID document
+   * @param {string} did - The DID-Nostr identifier
+   * @returns {object|null} - The resolved minimal DID Document or null if invalid
+   */
+  function resolveDidNostrMinimal(did) {
+    if (!did || typeof did !== 'string') {
+      console.error('Invalid DID provided');
+      return null;
+    }
+
+    // Check if the DID matches the expected format
+    const didMatch = did.match(/^did:nostr:([0-9a-f]{64})$/i);
+    if (!didMatch) {
+      console.error('Invalid DID-Nostr format');
+      return null;
+    }
+
+    const pubkey = didMatch[1];
+    return createDidNostrDocumentMinimal(pubkey);
+  }
+
+  /**
+   * Resolves a DID-Nostr identifier to its enhanced DID Document (with optional network queries)
    * @param {string} did - The DID-Nostr identifier
    * @param {object} [options] - Additional options
    * @param {string[]} [options.relays] - Array of relay URLs to include in the service section
@@ -273,6 +335,7 @@
    * @param {string[]} [options.storage] - Storage endpoints to include in the service section
    * @param {string[]} [options.domains] - Domains to check for .well-known HTTP resolution
    * @param {boolean} [options.verbose] - Whether to log verbose output
+   * @param {boolean} [options.minimal] - Return minimal document without enhancements
    * @returns {Promise<object|null>} - The resolved DID Document or null if invalid
    */
   async function resolveDidNostr (did, options = {}) {
@@ -283,6 +346,11 @@
         console.log(message);
       }
     };
+
+    // If minimal mode is requested, return minimal document immediately
+    if (options.minimal) {
+      return resolveDidNostrMinimal(did);
+    }
 
     if (!did || typeof did !== 'string') {
       console.error('Invalid DID provided');
@@ -968,7 +1036,10 @@
     normalizePublicKey,
     npubToHex,
     createDidNostr,
+    pubkeyToMultikey,
+    createDidNostrDocumentMinimal,
     createDidNostrDocument,
+    resolveDidNostrMinimal,
     resolveDidNostr,
     fetchRelaysForPubkey,
     fetchProfileForPubkey,

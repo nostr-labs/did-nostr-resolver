@@ -47,6 +47,7 @@ function showHelp () {
   console.log(`  ${colors.green}resolve${colors.reset} - Resolve a DID to a DID document`);
   console.log('');
   console.log(`${colors.bright}Options:${colors.reset}`);
+  console.log(`  ${colors.green}--minimal${colors.reset}           - 🚀 NEW: Offline-first resolution (instant, no network required)`);
   console.log('  --relays=<urls>     - Comma-separated list of relay URLs to include in the service section');
   console.log('  --domains=<domains> - Comma-separated list of domains to try for HTTP resolution');
   console.log('  --use-http          - Enable HTTP resolution via .well-known/did/nostr/<pubkey>.json');
@@ -67,11 +68,15 @@ function showHelp () {
   console.log('  HTTP resolution is used by default when --domains are specified or --use-http is set.');
   console.log('');
   console.log(`${colors.bright}Examples:${colors.reset}`);
+  console.log(`  ${colors.green}# Offline-first resolution (RECOMMENDED - instant, works offline)${colors.reset}`);
+  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --minimal');
+  console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --minimal');
+  console.log('');
+  console.log(`  ${colors.green}# Enhanced resolution with optional network queries${colors.reset}`);
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 -v');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --include-profile');
   console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --no-fetch-relays');
-  console.log('  did-nostr-resolver create 32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245 --domains=example.com,test.org');
   console.log('  did-nostr-resolver resolve did:nostr:32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245');
   console.log('');
 }
@@ -94,7 +99,8 @@ function parseOptions (args) {
     output: null,
     includeProfile: true,       // Default to including profile information
     fetchRelays: true,          // Default to fetching relays from kind 10002 events
-    verbose: false              // Default to quiet mode
+    verbose: false,             // Default to quiet mode
+    minimal: false              // Default to enhanced resolution
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -126,6 +132,11 @@ function parseOptions (args) {
       options.fetchRelays = false;
     } else if (args[i] === '-v' || args[i] === '--verbose') {
       options.verbose = true;
+    } else if (args[i] === '--minimal') {
+      options.minimal = true;
+      // When using minimal mode, skip profile fetching and relay fetching
+      options.includeProfile = false;
+      options.fetchRelays = false;
     }
   }
 
@@ -179,6 +190,38 @@ async function createDID (pubkey, options) {
     }
 
     log(options, `${colors.yellow}Creating DID document for public key: ${colors.bright}${pubkey}${colors.reset}`);
+
+    // If minimal mode is requested, use offline-first resolution
+    if (options.minimal) {
+      log(options, `${colors.green}🚀 Using minimal mode: Offline-first resolution (instant, no network)${colors.reset}`);
+      
+      const didDocument = resolver.createDidNostrDocumentMinimal(pubkey);
+      
+      if (!didDocument) {
+        console.error(`${colors.red}Error: Failed to create minimal DID document${colors.reset}`);
+        return 1;
+      }
+
+      const output = JSON.stringify(didDocument, null, 2);
+
+      // Save to file or print to stdout
+      if (options.output) {
+        try {
+          fs.writeFileSync(options.output, output);
+          log(options, `${colors.green}Minimal DID document saved to ${options.output}${colors.reset}`);
+        } catch (error) {
+          console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
+          return 1;
+        }
+      } else {
+        log(options, `${colors.bright}Minimal DID Document (Offline-First):${colors.reset}`);
+        console.log(output);
+      }
+      return 0;
+    }
+
+    // Enhanced mode continues below...
+    log(options, `${colors.yellow}Using enhanced mode: Network queries for service endpoints${colors.reset}`);
 
     // Log HTTP resolution status
     if (options.useHttp) {
@@ -296,6 +339,38 @@ async function resolveDID (did, options) {
     }
 
     log(options, `${colors.yellow}Resolving DID: ${colors.bright}${did}${colors.reset}`);
+
+    // If minimal mode is requested, use offline-first resolution
+    if (options.minimal) {
+      log(options, `${colors.green}🚀 Using minimal mode: Offline-first resolution (instant, no network)${colors.reset}`);
+      
+      const didDocument = resolver.resolveDidNostrMinimal(did);
+      
+      if (!didDocument) {
+        console.error(`${colors.red}Error: Failed to resolve DID in minimal mode${colors.reset}`);
+        return 1;
+      }
+
+      const output = JSON.stringify(didDocument, null, 2);
+
+      // Save to file or print to stdout
+      if (options.output) {
+        try {
+          fs.writeFileSync(options.output, output);
+          log(options, `${colors.green}Minimal DID document saved to ${options.output}${colors.reset}`);
+        } catch (error) {
+          console.error(`${colors.red}Error writing to file: ${error.message}${colors.reset}`);
+          return 1;
+        }
+      } else {
+        log(options, `${colors.bright}Minimal DID Document (Offline-First):${colors.reset}`);
+        console.log(output);
+      }
+      return 0;
+    }
+
+    // Enhanced mode continues below...
+    log(options, `${colors.yellow}Using enhanced mode: Network queries for service endpoints${colors.reset}`);
 
     // Extract pubkey from DID
     const didMatch = did.match(/^did:nostr:([0-9a-f]{64})$/i);

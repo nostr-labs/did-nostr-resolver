@@ -1,7 +1,7 @@
 {
   "name": "did-nostr-resolver",
-  "version": "0.0.7",
-  "description": "DID method implementation for Nostr public keys",
+  "version": "0.0.8",
+  "description": "Offline-first DID resolver for Nostr with W3C Multikey support",
   "main": "index.js",
   "bin": {
     "did-nostr-resolver": "bin/cli.js"
